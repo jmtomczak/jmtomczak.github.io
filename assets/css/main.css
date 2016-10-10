@@ -3202,7 +3202,7 @@
 		background-image: url("images/overlay.png"), linear-gradient(45deg, #002080 0%, #4d79ff 100%);
 		background-size: 100px 100px, cover;
 		color: rgba(255, 255, 255, 0.5);
-		padding: 14em 0 4em;
+		padding: 1em 0 0em;
 	}
 
 		#banner h2 {
