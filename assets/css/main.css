@@ -1600,7 +1600,7 @@
 	}
 
 	a {
-		color: #00BC8A;
+		color: #00d69d;
 	}
 
 	strong, b {
@@ -1814,7 +1814,7 @@
 		input[type="button"].special,
 		button.special,
 		.button.special {
-			background-color: #00BC8A;
+			background-color: #00ff99;
 			color: #ffffff !important;
 		}
 
@@ -1823,7 +1823,7 @@
 			input[type="button"].special:hover,
 			button.special:hover,
 			.button.special:hover {
-				background-color: #00d69d;
+				background-color: #000099;
 			}
 
 			input[type="submit"].special:active,
@@ -1831,7 +1831,7 @@
 			input[type="button"].special:active,
 			button.special:active,
 			.button.special:active {
-				background-color: #00a377;
+				background-color: #000099;
 			}
 
 /* Form */
@@ -2399,11 +2399,11 @@
 	}
 
 	ul.checklist li:before {
-		color: #00BC8A;
+		color: #00ff99;
 	}
 
 	ul.contact li:before {
-		color: #00BC8A;
+		color: #00ff99;
 	}
 
 /* Section/Article */
@@ -2790,7 +2790,7 @@
 				.wrapper.style1 button.special,
 				.wrapper.style1 .button.special {
 					background-color: #ffffff;
-					color: #00BC8A !important;
+					color: #ff471a !important;
 				}
 
 			.wrapper.style1 label {
@@ -2876,7 +2876,7 @@
 			}
 
 			.wrapper.style1 ul.checklist li:before {
-				color: #00BC8A;
+				color: #00ff99;
 			}
 
 			.wrapper.style1 ul.contact li:before {
@@ -3010,7 +3010,7 @@
 				.wrapper.style2 input[type="button"].special,
 				.wrapper.style2 button.special,
 				.wrapper.style2 .button.special {
-					background-color: #00BC8A;
+					background-color: #00ff99;
 					color: #ffffff !important;
 				}
 
@@ -3019,7 +3019,7 @@
 					.wrapper.style2 input[type="button"].special:hover,
 					.wrapper.style2 button.special:hover,
 					.wrapper.style2 .button.special:hover {
-						background-color: #00d69d;
+						background-color: #000099;
 					}
 
 					.wrapper.style2 input[type="submit"].special:active,
@@ -3027,7 +3027,7 @@
 					.wrapper.style2 input[type="button"].special:active,
 					.wrapper.style2 button.special:active,
 					.wrapper.style2 .button.special:active {
-						background-color: #00a377;
+						background-color: #000099;
 					}
 
 			.wrapper.style2 label {
@@ -3113,7 +3113,7 @@
 			}
 
 			.wrapper.style2 ul.checklist li:before {
-				color: #00BC8A;
+				color: #00ff99;
 			}
 
 			.wrapper.style2 ul.contact li:before {
@@ -3196,13 +3196,13 @@
 /* Banner */
 
 	#banner {
-		background-image: url("images/overlay.png"), -moz-linear-gradient(45deg, #4A4771 0%, #7C3875 100%);
-		background-image: url("images/overlay.png"), -webkit-linear-gradient(45deg, #4A4771 0%, #7C3875 100%);
-		background-image: url("images/overlay.png"), -ms-linear-gradient(45deg, #4A4771 0%, #7C3875 100%);
-		background-image: url("images/overlay.png"), linear-gradient(45deg, #4A4771 0%, #7C3875 100%);
+		background-image: url("images/overlay.png"), -moz-linear-gradient(45deg, #002080 0%, #4d79ff 100%);
+		background-image: url("images/overlay.png"), -webkit-linear-gradient(45deg, #002080 0%, #4d79ff 100%);
+		background-image: url("images/overlay.png"), -ms-linear-gradient(45deg, #002080 0%, #4d79ff 100%);
+		background-image: url("images/overlay.png"), linear-gradient(45deg, #002080 0%, #4d79ff 100%);
 		background-size: 100px 100px, cover;
 		color: rgba(255, 255, 255, 0.5);
-		padding: 2em 0 2em;
+		padding: 14em 0 4em;
 	}
 
 		#banner h2 {
