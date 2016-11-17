@@ -3197,20 +3197,29 @@
 
 	#banner {
 		background-image: url("images/overlay.png"), -moz-linear-gradient(45deg, #002080 0%, #4d79ff 100%);
+		background-image: url("images/overlay.png"), -moz-linear-gradient(45deg, #002080 0%, #4d79ff 100%);
 		background-image: url("images/overlay.png"), -webkit-linear-gradient(45deg, #002080 0%, #4d79ff 100%);
 		background-image: url("images/overlay.png"), -ms-linear-gradient(45deg, #002080 0%, #4d79ff 100%);
 		background-image: url("images/overlay.png"), linear-gradient(45deg, #002080 0%, #4d79ff 100%);
-		background-size: 100px 100px, cover;
+		background-size: 100% 100%, cover;
 		color: rgba(255, 255, 255, 0.5);
-		padding: 1em 0 0em;
+		padding: 0em 0 0em;
 	}
 
 		#banner h2 {
-			font-size: 2.5em;
+			font-size: 1.5em;
 			line-height: 1.4;
 			margin-bottom: 0;
-			color: #fff;
+			color: #00BC8A;
 		}
+
+		#banner h4 {
+			font-size: 1.0em;
+			line-height: 1.4;
+			margin-bottom: 0;
+			color: #00BC8A;
+		}
+
 
 		#banner p {
 			font-size: 1.15em;
