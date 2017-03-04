@@ -1484,7 +1484,7 @@
 	}
 
 		a:hover {
-			color: #00BC8A !important;
+			color: #a6a6a6 !important;
 			text-decoration: none;
 		}
 
@@ -1600,7 +1600,7 @@
 	}
 
 	a {
-		color: #00d69d;
+		color: #b3b3b3;
 	}
 
 	strong, b {
@@ -1755,7 +1755,7 @@
 	input[type="button"],
 	button,
 	.button {
-		background-color: #fafafa;
+		background-color: #d9d9d9;
 		color: #666 !important;
 	}
 
@@ -1772,7 +1772,7 @@
 		input[type="button"]:active,
 		button:active,
 		.button:active {
-			background-color: #ededed;
+			background-color: #b3b3b3;
 		}
 
 		input[type="submit"].alt,
@@ -1814,8 +1814,8 @@
 		input[type="button"].special,
 		button.special,
 		.button.special {
-			background-color: #00ff99;
-			color: #ffffff !important;
+			background-color: #d9d9d9;
+			color: #666 !important;
 		}
 
 			input[type="submit"].special:hover,
@@ -1823,7 +1823,7 @@
 			input[type="button"].special:hover,
 			button.special:hover,
 			.button.special:hover {
-				background-color: #000099;
+				background-color: #b3b3b3;
 			}
 
 			input[type="submit"].special:active,
@@ -1831,7 +1831,7 @@
 			input[type="button"].special:active,
 			button.special:active,
 			.button.special:active {
-				background-color: #000099;
+				background-color: #b3b3b3;
 			}
 
 /* Form */
@@ -2020,8 +2020,8 @@
 		input[type="email"]:focus,
 		select:focus,
 		textarea:focus {
-			border-color: #00BC8A;
-			box-shadow: 0 0 0 1px #00BC8A;
+			border-color: #a6a6a6;
+			box-shadow: 0 0 0 1px #a6a6a6;
 		}
 
 	.select-wrapper:before {
@@ -2041,15 +2041,15 @@
 
 	input[type="checkbox"]:checked + label:before,
 	input[type="radio"]:checked + label:before {
-		background-color: #00BC8A;
-		border-color: #00BC8A;
+		background-color: #a6a6a6;
+		border-color: #a6a6a6;
 		color: #ffffff;
 	}
 
 	input[type="checkbox"]:focus + label:before,
 	input[type="radio"]:focus + label:before {
-		border-color: #00BC8A;
-		box-shadow: 0 0 0 1px #00BC8A;
+		border-color: #a6a6a6;
+		box-shadow: 0 0 0 1px #a6a6a6;
 	}
 
 	::-webkit-input-placeholder {
@@ -2400,11 +2400,11 @@
 	}
 
 	ul.checklist li:before {
-		color: #00ff99;
+		color: #000099;
 	}
 
 	ul.contact li:before {
-		color: #00ff99;
+		color: #000099;
 	}
 
 /* Section/Article */
@@ -2689,7 +2689,7 @@
 		}
 
 		.wrapper.style1 {
-			background-color: #00BC8A;
+			background-color: #a6a6a6;
 			color: #bfeee1;
 		}
 
@@ -2731,7 +2731,7 @@
 			.wrapper.style1 input[type="button"],
 			.wrapper.style1 button,
 			.wrapper.style1 .button {
-				background-color: #fafafa;
+				background-color: #d9d9d9;
 				color: #666 !important;
 			}
 
@@ -2748,7 +2748,7 @@
 				.wrapper.style1 input[type="button"]:active,
 				.wrapper.style1 button:active,
 				.wrapper.style1 .button:active {
-					background-color: #ededed;
+					background-color: #b3b3b3;
 				}
 
 				.wrapper.style1 input[type="submit"].alt,
@@ -2782,7 +2782,7 @@
 					.wrapper.style1 input[type="button"].alt.icon:before,
 					.wrapper.style1 button.alt.icon:before,
 					.wrapper.style1 .button.alt.icon:before {
-						color: #99e4d0;
+						color: #d9d9d9;
 					}
 
 				.wrapper.style1 input[type="submit"].special,
@@ -2790,7 +2790,7 @@
 				.wrapper.style1 input[type="button"].special,
 				.wrapper.style1 button.special,
 				.wrapper.style1 .button.special {
-					background-color: #ffffff;
+					background-color: #d9d9d9;
 					color: #ff471a !important;
 				}
 
@@ -2835,7 +2835,7 @@
 			.wrapper.style1 input[type="radio"]:checked + label:before {
 				background-color: #ffffff;
 				border-color: #ffffff;
-				color: #00BC8A;
+				color: #a6a6a6;
 			}
 
 			.wrapper.style1 input[type="checkbox"]:focus + label:before,
@@ -2877,11 +2877,11 @@
 			}
 
 			.wrapper.style1 ul.checklist li:before {
-				color: #00ff99;
+				color: #000099;
 			}
 
 			.wrapper.style1 ul.contact li:before {
-				color: #00BC8A;
+				color: #a6a6a6;
 			}
 
 			.wrapper.style1 header p {
@@ -2935,7 +2935,7 @@
 			}
 
 			.wrapper.style2 a {
-				color: #00BC8A;
+				color: #a6a6a6;
 			}
 
 			.wrapper.style2 strong, .wrapper.style2 b {
@@ -3011,8 +3011,8 @@
 				.wrapper.style2 input[type="button"].special,
 				.wrapper.style2 button.special,
 				.wrapper.style2 .button.special {
-					background-color: #00ff99;
-					color: #ffffff !important;
+					background-color: #d9d9d9;
+					color: #666 !important;
 				}
 
 					.wrapper.style2 input[type="submit"].special:hover,
@@ -3020,7 +3020,7 @@
 					.wrapper.style2 input[type="button"].special:hover,
 					.wrapper.style2 button.special:hover,
 					.wrapper.style2 .button.special:hover {
-						background-color: #000099;
+						background-color: #ededed;
 					}
 
 					.wrapper.style2 input[type="submit"].special:active,
@@ -3028,7 +3028,7 @@
 					.wrapper.style2 input[type="button"].special:active,
 					.wrapper.style2 button.special:active,
 					.wrapper.style2 .button.special:active {
-						background-color: #000099;
+						background-color: #b3b3b3;
 					}
 
 			.wrapper.style2 label {
@@ -3049,8 +3049,8 @@
 				.wrapper.style2 input[type="email"]:focus,
 				.wrapper.style2 select:focus,
 				.wrapper.style2 textarea:focus {
-					border-color: #00BC8A;
-					box-shadow: 0 0 0 1px #00BC8A;
+					border-color: #a6a6a6;
+					box-shadow: 0 0 0 1px #a6a6a6;
 				}
 
 			.wrapper.style2 .select-wrapper:before {
@@ -3070,15 +3070,15 @@
 
 			.wrapper.style2 input[type="checkbox"]:checked + label:before,
 			.wrapper.style2 input[type="radio"]:checked + label:before {
-				background-color: #00BC8A;
-				border-color: #00BC8A;
+				background-color: #a6a6a6;
+				border-color: #a6a6a6;
 				color: #ffffff;
 			}
 
 			.wrapper.style2 input[type="checkbox"]:focus + label:before,
 			.wrapper.style2 input[type="radio"]:focus + label:before {
-				border-color: #00BC8A;
-				box-shadow: 0 0 0 1px #00BC8A;
+				border-color: #a6a6a6;
+				box-shadow: 0 0 0 1px #a6a6a6;
 			}
 
 			.wrapper.style2 ::-webkit-input-placeholder {
@@ -3114,11 +3114,11 @@
 			}
 
 			.wrapper.style2 ul.checklist li:before {
-				color: #00ff99;
+				color: #000099;
 			}
 
 			.wrapper.style2 ul.contact li:before {
-				color: #00BC8A;
+				color: #a6a6a6;
 			}
 
 			.wrapper.style2 header p {
@@ -3211,14 +3211,14 @@
 			font-size: 1.5em;
 			line-height: 1.4;
 			margin-bottom: 0;
-			color: #00BC8A;
+			color: #a6a6a6;
 		}
 
 		#banner h4 {
 			font-size: 1.0em;
 			line-height: 1.4;
 			margin-bottom: 0;
-			color: #00BC8A;
+			color: #a6a6a6;
 		}
 
 
