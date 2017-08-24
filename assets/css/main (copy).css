@@ -2683,13 +2683,6 @@
 			max-width: 100%;
 		}
 
-		.wrapper > .inner2 {
-			margin-left: auto;
-			margin-right: auto;
-			width: 70em;
-			max-width: 100%;
-		}
-
 		.wrapper.alt {
 			border-top: solid 2px;
 			border-top-color: rgba(144, 144, 144, 0.25);
@@ -2935,11 +2928,6 @@
 		.wrapper.style2 {
 			background-color: #fafafa;
 			color: #777;
-
-			margin-left: auto;
-			margin-right: auto;
-			width: 70em;
-			max-width: 100%;
 		}
 
 			.wrapper.style2 input, .wrapper.style2 select, .wrapper.style2 textarea {
