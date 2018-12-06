@@ -32,7 +32,7 @@ html, body {
 }
 
 body {
-  font: 14px/20px sans-serif;
+  font: 14px/16px sans-serif;
   color: #3c3c3c;
 }
 
@@ -41,7 +41,7 @@ body.grid {
 }
 
 h1 {
-  font-size: 41px;
+  font-size: 28px;
   line-height: 50px;
   font-weight: normal;
   font-style: normal;
@@ -49,7 +49,7 @@ h1 {
 }
 
 h2 {	
-  font-size: 27px;
+  font-size: 24px;
   line-height: 30px;
   font-weight: normal;
   font-style: normal;
@@ -57,7 +57,7 @@ h2 {
 }
 
 h3 {
-  font-size: 27px;
+  font-size: 24px;
   line-height: 30px;
   font-weight: normal;
   font-style: normal;
@@ -111,7 +111,7 @@ a:link:hover, a:visited:hover {
 
 #header ul li a {
   line-height: 24px;
-  font-size: 18px;
+  font-size: 16px;
   font-style: italic;
   background: url(../images/header-right.png) right 0;
   float: left;
@@ -278,7 +278,7 @@ a:link:hover, a:visited:hover {
 
 .section .description {
   width: 710px;
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .section .description li{

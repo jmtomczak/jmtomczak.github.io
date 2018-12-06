@@ -34,12 +34,12 @@
 
 <!--       Description       --->
 <div class="section">
-  <h2>Description</h2>
+  <h2>Description</h2><br><br>
 
    <div class="item"> 
     <div class="description" align="justify">
 	<p><b>Title</b>: "Deep learning and Bayesian inference for medical imaging" (Grant No. 702666)<p>
-	<p>The project was carried out from 2016/10/1 to 2018/09/30 within the Marie Skłodowska-Curie Action (Individual Fellowship).</p>
+	<p>The project was carried out from 2016/10/1 to 2018/09/30 within the Marie Skłodowska-Curie Action (Individual Fellowship), financed by the European Comission.</p>
     </div>
    </div>
 
@@ -55,12 +55,12 @@
 
 <!--       Methodology       --->
 <div class="section">
-  <h2>Methodology</h2>
+  <h2>Methodology</h2><br><br>
 
    <div class="item"> 
     <div class="description" align="justify">
-	<p><b>Volume-preserving Normalizing Flows</b><br>
-One approach is to apply a generative modelling to medical data. For this purpose we used <b>variational auto-encoders</b> (VAE) that utilize neural networks to model probability distributions between visible and latent variables. Further, in order to increase flexibility of the VAE we proposed a new <b>volume-preserving flow</b> using <b>a series of Householder transformations</b>. In other words, we transform a vector of latent variables to new vector of latent variables using the Householder transformation. As a result, we obtain a series (levels) of latent variables and the final one follows more flexible posterior distribution. The proposed approach was applied to grayscale image patches of <b>histopathological data</b>.
+	<p><b>Volume-preserving Normalizing Flows</b></p>
+<p>One approach is to apply a generative modelling to medical data. For this purpose we used <b>variational auto-encoders</b> (VAE) that utilize neural networks to model probability distributions between visible and latent variables. Further, in order to increase flexibility of the VAE we proposed a new <b>volume-preserving flow</b> using <b>a series of Householder transformations</b>. In other words, we transform a vector of latent variables to new vector of latent variables using the Householder transformation. As a result, we obtain a series (levels) of latent variables and the final one follows more flexible posterior distribution. The proposed approach was applied to grayscale image patches of <b>histopathological data</b>.
 <br> 
 Another idea was to improve on the <b>linear inverse auto-regressive flow</b> (LinIAF). The LinIAF applies a linear transformation to latent variables with a lower-triangular matrix with ones on the diagonal. In order to increase the flexibility of this normalizing flow we proposed to use a <b>convex combination of lower-triangular matrices</b>. As a result, we obtained two levels of latent variables and the final one follows more flexible posterior distribution. The proposed approach was also applied to grayscale image patches of <b>histopathological data</b>.
 <br>
@@ -71,8 +71,8 @@ See <a href="#pubs">publications</a> for details (NIPS Workshop on Bayesian Deep
 
    <div class="item"> 
     <div class="description" align="justify">
-	<p><b>Sylvester Normalizing Flows</b><br>
-Volume-preserving normalizing flows allow to obtain a richer family of variational posteriors, however, these are limited to linear transformations. In order to overcome this problem, we proposed a non-linear transformation by utilizing the <b>Sylvester's determinant identity</b>. As a result, we obtained a class of non-linear inversible transformations. The main idea of the approach is to parameterize weights of the transformations using orthogonal matrices. In order to allow efficient calculations, we proposed to use <b>Householder matrices</b> and a <b>numerical procedure</b> to parameterize orthogonal matrices. The proposed approach was applied to different <b>image benchmark datasets</b>.
+	<p><b>Sylvester Normalizing Flows</b></p>
+<p>Volume-preserving normalizing flows allow to obtain a richer family of variational posteriors, however, these are limited to linear transformations. In order to overcome this problem, we proposed a non-linear transformation by utilizing the <b>Sylvester's determinant identity</b>. As a result, we obtained a class of non-linear inversible transformations. The main idea of the approach is to parameterize weights of the transformations using orthogonal matrices. In order to allow efficient calculations, we proposed to use <b>Householder matrices</b> and a <b>numerical procedure</b> to parameterize orthogonal matrices. The proposed approach was applied to different <b>image benchmark datasets</b>.
 <br>
 See <a href="#pubs">publications</a> for details (UAI 2018).</p>
     </div>
@@ -80,8 +80,8 @@ See <a href="#pubs">publications</a> for details (UAI 2018).</p>
 
 <div class="item"> 
     <div class="description" align="justify">
-	<p><b>New prior for VAE</b><br
-We proposed to extend <b>the variational auto-encoder (VAE) framework</b> with a new type of prior ("Variational Mixture of Posteriors" prior, or <b>VampPrior</b> for short). The VampPrior consists of <b>a mixture distribution (e.g., a mixture of Gaussians) with components given by variational posteriors conditioned on learnable pseudo-inputs</b>. We further extended this prior to <b>a two layer hierarchical model</b> and showed that this architecture, where prior and posterior are coupled, learns significantly better models. The model also avoids the usual local optima issues that plague VAEs related to useless latent dimensions. We provided empirical studies on six datasets, namely, static and dynamic MNIST, OMNIGLOT, Caltech 101 Silhouettes, Frey Faces and Histopathology patches, and show that applying the hierarchical VampPrior delivers <b>state-of-the-art results</b> on all datasets in the unsupervised permutation invariant setting and the best or close to SOTA methods in the invariant setting.
+	<p><b>New prior for VAE</b></p>
+<p>We proposed to extend <b>the variational auto-encoder (VAE) framework</b> with a new type of prior ("Variational Mixture of Posteriors" prior, or <b>VampPrior</b> for short). The VampPrior consists of <b>a mixture distribution (e.g., a mixture of Gaussians) with components given by variational posteriors conditioned on learnable pseudo-inputs</b>. We further extended this prior to <b>a two layer hierarchical model</b> and showed that this architecture, where prior and posterior are coupled, learns significantly better models. The model also avoids the usual local optima issues that plague VAEs related to useless latent dimensions. We provided empirical studies on six datasets, namely, static and dynamic MNIST, OMNIGLOT, Caltech 101 Silhouettes, Frey Faces and Histopathology patches, and show that applying the hierarchical VampPrior delivers <b>state-of-the-art results</b> on all datasets in the unsupervised permutation invariant setting and the best or close to SOTA methods in the invariant setting.
 <br>
 Further, we utilized the VampPrior in the <b>fair classification setting</b>. Fairness is very statistical important property in many practical applications including medicine. We proposed a two-level hierarchical VAE with a class label and a sensitive variable. In order to enforce fairness, we used a regularization term based on the <b>mutual information measure</b>.
 <br>
@@ -92,8 +92,8 @@ See <a href="#pubs">publications</a> for details (AISTATS 2018, ICML Workshop 20
 
 <div class="item"> 
     <div class="description" align="justify">
-	<p><b>Medical imaging using Deep Multiple Instance Learning</b><br>
-Training a whole slide imaging tool requires relatively large amount of computational resources. Similarly, providing pixel level annotations interferes pathologists daily work. In order to overcome these issues, we proposed to apply multi-instance learning combined with deep learning to histopathology classification. Our goal is to utilize weakly-labaled data to train deep learning models in an end-to-end fashion. In the research we discussed different permutation-invariant operators and proposed a new one basing on the attention mechanism that is fully trainable.
+	<p><b>Medical imaging using Deep Multiple Instance Learning</b></p>
+<p>Training a whole slide imaging tool requires relatively large amount of computational resources. Similarly, providing pixel level annotations interferes pathologists daily work. In order to overcome these issues, we proposed to apply multi-instance learning combined with deep learning to histopathology classification. Our goal is to utilize weakly-labaled data to train deep learning models in an end-to-end fashion. In the research we discussed different permutation-invariant operators and proposed a new one basing on the attention mechanism that is fully trainable.
 <br>
 See <a href="#pubs">publications</a> for details (NIPS Workshop 2017, MIDL 2018, ICML 2018).</li>
 <p>
@@ -105,9 +105,9 @@ See <a href="#pubs">publications</a> for details (NIPS Workshop 2017, MIDL 2018,
 
 <!--    PUBLICATIONS    --->
 <div class="section" id="pubs">
-  <h2>Publications</h2>
+  <h2>Publications</h2><br><br>
   <div class="item">
-    <div class="description">
+    <div class="description" align="justify">
       <p><ul>
 	<li>Tim Davidson, Luca Falorsi, Nicola de Cao, Thomas Kipf, <b>Jakub M. Tomczak</b>, <i>Hyperspherical Variational Auto-Encoders</i>, UAI, Monterey, California, the USA, 2018, <a href="https://arxiv.org/abs/1804.00891" target="_blank">[arxiv]</a>, <a href="https://arxiv.org/pdf/1804.00891.pdf" target="_blank">[PDF]</a>, <a href="https://github.com/nicola-decao/s-vae" target="_blank">[CODE]</a>, <a href="https://nicola-decao.github.io/s-vae/" target="_blank">[BLOG]</a></li>
 							<li>Rianne van den Berg, Leonard Hasenclever, <b>Jakub M. Tomczak</b>, Max Welling, <i>Sylvester Normalizing Flow for Variational Inference</i>, UAI, Monterey, California, the USA, 2018, <a href="https://arxiv.org/abs/1803.05649" target="_blank">[arxiv]</a>, <a href="https://arxiv.org/pdf/1803.05649.pdf" target="_blank">[PDF]</a></li>
@@ -127,10 +127,10 @@ See <a href="#pubs">publications</a> for details (NIPS Workshop 2017, MIDL 2018,
 
 <!--    DISSEMINATION    --->
 <div class="section">
-  <h2>Dissemination</h2>
+  <h2>Dissemination</h2><br><br>
   <div class="item">
     <h3>Interviews & media</h3>
-    <div class="description">
+    <div class="description" align="justify">
       <p><ul class="checklist">
 	<li>An interview (together with Max Welling) for the promotional purposes of the University of Amsterdam.<br>
 <b>LINK</b> to the brochure: <a href="" target="_blank">[here]</a>.</li>
@@ -148,7 +148,7 @@ My short <b>"press report"</b>: <a href="https://twitter.com/jmtomczak/status/91
 
   <div class="item">
     <h3>Presentations</h3>
-    <div class="description">
+    <div class="description" align="justify">
       <p><ul>
       <li><b>Jakub M. Tomczak</b>, a presentation at PASC 2018 Conference (2nd of July, 2018) and CERN (3rd of July, 2018) <br><b>TITLE:</b><br><i>The Success of Deep Generative Models</i><br><b>ABSTRACT:</b><br>Deep generative models allow to learn hidden representation of data and generate new examples. There are two major families of models that are exploited in current applications : Generative Adversarial Networks (GANs), and Variational Auto-Encoders (VAE). The principle of GANs is to train a generator that can generate examples from random noise, in adversary of a discrimanitive model that is forced to confused true samples from generated ones. Generated images by GANs are very sharp and detailed. The biggest disadvantage of GANs is that they are trained through solving a minimax optimization problem that causes significant learning instability issues. VAEs are based on a fully probabilistic perspective of the variational inference. The learning problem aims at maximizing the variational lower bound for a given family of variational posteriors. The model can be trained by backpropagation but it was noticed that the resulting generated images are rather blurry. However, VAEs are probabilistic models, thus, they could be incorporated in almost any probabilistic framework. We will discuss basics of both approaches and present recent extensions. We will point out advantages and disadvantages of GANs and VAE. Some of most promising applications of deep generative models will be shown.<br>
 <b>ANNOUNCMENT at CERN</b>: <a href="https://indico.cern.ch/event/736998/" target="_blank">[link]</a>
@@ -162,7 +162,7 @@ My short <b>"press report"</b>: <a href="https://twitter.com/jmtomczak/status/91
   </div>
 
   <div class="item">
-    <div class="description">
+    <div class="description" align="justify">
       <p><ul>
 	<li><b>Jakub M. Tomczak</b>, a presentation in CWI (Dept. of Life Sciences and Health)<br><b>TITLE:</b><br><i>Deep Generative Modeling using Variational Auto-Encoders</i><br><b>ABSTRACT:</b><br>Learning generative models that are capable of capturing rich distributions from vast amounts of data like image collections remains one of the major challenges of artificial intelligence. In recent years, different approaches to achieve this goal were proposed by formulating alternative training objectives to the log-likelihood like the adversarial loss or by utilizing variational inference. The latter approach could be made especially efficient through the application of the reparameterization trick resulting in a highly scalable framework now known as the variational auto-encoders (VAE). VAEs are scalable and powerful generative models that can be easily utilized in any probabilistic framework. The tractability and the flexibility of the VAE follow from the choice of the variational posterior (the encoder), the prior over latent variables and the decoder. 
 <br>
@@ -173,7 +173,7 @@ In this presentation I will outline different manners of improving the VAE. More
    </div>
 
   <div class="item">
-    <div class="description">
+    <div class="description" align="justify">
       <p><ul>
 	<li><b>Jakub M. Tomczak</b>, a presentation at Summer School on Data Science (Split, Croatia)<br><b>TITLE:</b><br><i>Deep Generative Models: GANs and VAE</i><br><b>ABSTRACT:</b><br>During this talk I present why generative modeling is important and what are the main trends in generative modeling. I focus on Generative Adversarial Networks (GANs) and Variational Auto-Encoders (VAE). I outline basics of these two approaches and point to recent developments. Moreover, I provice pros and cons of these methods.<br><b>SLIDES:</b> <a href="pdf/ssds2017.pdf" target="_blank">[here]</a></li>
 	<li><b>Jakub M. Tomczak</b>, a presentation at Falling Walls Lab in Brussels<br><b>TITLE:</b><br><i>Breaking the Wall of Medical Imaging</i><br><b>Description:</b><br>I had a great opportunity to present my work at Falling Walls Lab. I was chosen to be one of thirty presenters (MSCA fellows) that had a chance to describe their work within 3 minutes. This event was a part of "Science is wonder-ful" festival organized by the European Comission.<br><b>SLIDES:</b> <a href="pdf/FallingWalls.pdf" target="_blank">[here]</a><br>
