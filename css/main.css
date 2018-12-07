@@ -279,6 +279,7 @@ a:link:hover, a:visited:hover {
 .section .description {
   width: 710px;
   font-size: 16px;
+  line-height: 24px;
 }
 
 .section .description li{
