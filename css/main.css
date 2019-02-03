@@ -248,7 +248,7 @@ a:link:hover, a:visited:hover {
 .section h3 {
   line-height: 22px;
   margin-bottom: 24px;
-  font-style: italic;
+  font-style: normal;
 }
 
 .section h4 {
