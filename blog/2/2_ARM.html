@@ -13106,8 +13106,8 @@ div#notebook {
 <div class="text_cell_render border-box-sizing rendered_html">
 <p>Before we start discussing how we can model the distribution $p(\mathbf{x})$, we refresh our memory about the core rules of probability theory, namely, the <strong>sum rule</strong> and the <strong>product rule</strong>. Let us introduce two random variables $\mathbf{x}$ and $\mathbf{y}$. Their joint distribution is $p(\mathbf{x}, \mathbf{y})$. The <strong>product rule</strong> allows us to <em>factorize</em> the joint distribution in two manners, namely:</p>
 \begin{align*}
-p(\mathbf{x}, \mathbf{y}) &amp;= p(\mathbf{x} | \mathbf{y}) p(\mathbf{x}) \\
-&amp;= p(\mathbf{y} | \mathbf{x}) p(\mathbf{y}) .
+p(\mathbf{x}, \mathbf{y}) &amp;= p(\mathbf{x} | \mathbf{y}) p(\mathbf{y}) \\
+&amp;= p(\mathbf{y} | \mathbf{x}) p(\mathbf{x}) .
 \end{align*}<p>In other words, the joint distribution could be represented as a product of a marginal distribution and a conditional distribution. The <strong>sum rule</strong> tells us that if we want to calculate the marginal distribution over one of the variables, we must integrate out (or sum out) the other variable, that is:</p>
 $$
 p(\mathbf{x}) = \sum_{\mathbf{x}} p(\mathbf{x}, \mathbf{y}).
