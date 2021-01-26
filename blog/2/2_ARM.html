@@ -13168,7 +13168,7 @@ $$
 p(x_d|\mathbf{x}_{&lt;d}) = p\left(x_d|\mathrm{RNN}(x_{d-1}, h_{d-1})\right)
 $$<p>where $h_d = \mathrm{RNN}(x_{d-1}, h_{d-1})$, and $h_d$ is a hidden context that acts as a <em>memory</em> that allows learning long-range dependencies. An example of using an RNN is presented in Figure 2.</p>
 <p><img src="sequential_RNN.png" width="500"></p>
-<p><strong>Figure 2.</strong> An example of applying an RNN depending on two last inputs. Inputs are denoted by blue nodes (bottom), intermediate representations are denoted by orange nodes (middle), and output probabilities are denoted by green nodes (top). Notice that compared to the approach with a shared MLP, there is an additional dependency between intermediate nodes $h_d$.</p>
+<p><strong>Figure 2.</strong> An example of applying causal convolutions. The kernel size is 2, but by applying dilation in higher layers, a much larger input could be processed (red edges), thus, a larger memory is utilized. Notice that the first layers must be option A to ensure proper processing.</p>
 <p>This approach gives a single parameterization, thus, it is efficient, and also solves the problem of a finite memory. Unfortunately, $\mathrm{RNN}$s suffer from other issues, namely: <em>(i)</em> they are sequential, hence, slow, <em>(ii)</em> if they are badly conditioned (i.e., the eigenvalues of a weight matrix are larger or smaller than $1$, then they suffer from exploding or vanishing gradients, respectively, that hinders learning long-range dependencies.</p>
 
 </div>
