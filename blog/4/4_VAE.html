@@ -283,7 +283,7 @@ $$<p>So as you can see, the whole math boils down to a relatively simple learnin
         <span class="n">std</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="mf">0.5</span><span class="o">*</span><span class="n">log_var</span><span class="p">)</span>
         
         <span class="c1"># Second, we sample epsilon from Normal(0,1).</span>
-        <span class="n">eps</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">std</span><span class="p">)</span>
+        <span class="n">eps</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">std</span><span class="p">)</span>
         
         <span class="c1"># The final output</span>
         <span class="k">return</span> <span class="n">mu</span> <span class="o">+</span> <span class="n">std</span> <span class="o">*</span> <span class="n">eps</span>
