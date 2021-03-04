@@ -103,7 +103,7 @@ $$
 \mathbf{x} = \mathbf{W} \mathbf{z} + \mathbf{b} + \varepsilon,
 $$<p>where $\varepsilon \sim \mathcal{N}(\varepsilon|0, \sigma^{2}\mathbf{I})$. The propery of the Gaussian distribution yields:</p>
 $$
-p(\mathbf{x} | \mathbf{z}) = \mathcal{N}\left(\mathbf{x}|\mathbf{W} \mathbf{z} + \mathbf{b}, \sigma \mathbf{I}\right) .
+p(\mathbf{x} | \mathbf{z}) = \mathcal{N}\left(\mathbf{x}|\mathbf{W} \mathbf{z} + \mathbf{b}, \sigma^{2} \mathbf{I}\right) .
 $$<p>This model is known as the <strong>probabilistic PCA</strong> (pPCA) (Tipping &amp; Bishop, 1999).</p>
 <p>Then, we can take advantage of properties of a linear combination of two vectors of normally-distributed random variables to calculate the integral explicitely (Bishop, 2006):
 \begin{align}
@@ -148,8 +148,8 @@ p(\mathbf{x}) &amp;= \int p(\mathbf{x} | \mathbf{z})\ p(\mathbf{z})\ \mathrm{d} 
 <p>If we consider an <strong>amortized variational posterior</strong>, namely, $q_{\phi}(\mathbf{z} | \mathbf{x})$ instead of $q_{\phi}(\mathbf{z})$ for each $\mathbf{x}$, then we get:</p>
 $$
 \ln p(\mathbf{x}) \geq \mathbb{E}_{\mathbf{z}\sim q_{\phi}(\mathbf{z} | \mathbf{x})} \left[ \ln p(\mathbf{x} | \mathbf{z}) \right] - \mathbb{E}_{\mathbf{z}\sim q_{\phi}(\mathbf{z}|\mathbf{x})} \left[ \ln q_{\phi}(\mathbf{z} | \mathbf{x}) -  \ln p(\mathbf{z}) \right] .
-$$<p>Amortization could be extremely useful, because we train a single model (e.g., a neural network with some weights), and it returns parameters of a distribution for given input. From now on, we will assume that we use amortizized variational posteriors, however, please remember that we don't need to do that!</p>
-<p>As a result, we obtain an auto-encoder-like model, with a stochastic encoder, $q_{\phi}(\mathbf{z})$, and a stochastic decoder, $p(\mathbf{x} | \mathbf{z})$. We use <em>stochastic</em> to highlight that the encoder and the decoder are probability distributions, and to stress out a difference with a deterministic auto-encoder. Ths model, with the amortized variational posterior, is called a <strong>Variational Auto-Encoder</strong> (Kingma &amp; Welling, 2013; Rezende et al., 2014). The lower-bound of the log-likelihood function is called the Evidence LOwer Bound (<strong>ELBO</strong>).</p>
+$$<p>Amortization could be extremely useful, because we train a single model (e.g., a neural network with some weights), and it returns parameters of a distribution for given input. From now on, we will assume that we use amortized variational posteriors, however, please remember that we don't need to do that! Please take a look at (Kim et al., 2018) where a semi-amortized variational inference is considered.</p>
+<p>As a result, we obtain an auto-encoder-like model, with a stochastic encoder, $q_{\phi}(\mathbf{z} | \mathbf{x})$, and a stochastic decoder, $p(\mathbf{x} | \mathbf{z})$. We use <em>stochastic</em> to highlight that the encoder and the decoder are probability distributions, and to stress out a difference with a deterministic auto-encoder. Ths model, with the amortized variational posterior, is called a <strong>Variational Auto-Encoder</strong> (Kingma &amp; Welling, 2013; Rezende et al., 2014). The lower-bound of the log-likelihood function is called the Evidence LOwer Bound (<strong>ELBO</strong>).</p>
 <p>The first part of the ELBO, $\mathbb{E}_{\mathbf{z}\sim q_{\phi}(\mathbf{z} | \mathbf{x})} \left[ \ln p(\mathbf{x} | \mathbf{z}) \right]$, is referred to as the (negative) <strong>reconstruction error</strong>, because $\mathbf{x}$ is encoded to $\mathbf{z}$ and then decoded back. The second part of the ELBO, $\mathbb{E}_{\mathbf{z}\sim q_{\phi}(\mathbf{z}|\mathbf{x})} \left[ \ln q_{\phi}(\mathbf{z} | \mathbf{x}) -  \ln p(\mathbf{z}) \right]$, could be seen as a <strong>regularizer</strong> and it coincides with the Kullback-Leibler divergence (KL). Please keep in mind that for a more complex models (e.g., hierarchical models), the regularizer(s) may not be interpreted as the KL term. Therefore, we prefer to use the term <em>the regularizer</em> because it is more general.</p>
 
 </div>
@@ -182,9 +182,9 @@ $$<p>The last component, $KL \left[ q_{\phi}(\mathbf{z}|\mathbf{x}) \|p(\mathbf{
 <div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div><div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p><strong>Components of VAEs</strong> Let us wrap up what we know right now. First of all, we consider a class of amortized variational posteriors $\{q_{\phi}(\mathbf{z}|\mathbf{x})\}$ that approximate the true posterior $p(\mathbf{z}|\mathbf{x})$. We can see them as <strong>stochastic encoders</strong>. Second, the conditional likelihood $p(\mathbf{x}|\mathbf{z})$ could be seen as a <strong>stochastic decoder</strong>. Third, the last component, $p(\mathbf{z})$, is the marginal distribution, also referred to as a <strong>prior</strong>. Lastly, the objective is the ELBO, a lower bound to the log-likelihood function:</p>
+<p><strong>Components of VAEs</strong> Let us wrap up what we know right now. First of all, we consider a class of amortized variational posteriors $\{q_{\phi}(\mathbf{z}|\mathbf{x})\}_{\phi}$ that approximate the true posterior $p(\mathbf{z}|\mathbf{x})$. We can see them as <strong>stochastic encoders</strong>. Second, the conditional likelihood $p(\mathbf{x}|\mathbf{z})$ could be seen as a <strong>stochastic decoder</strong>. Third, the last component, $p(\mathbf{z})$, is the marginal distribution, also referred to as a <strong>prior</strong>. Lastly, the objective is the ELBO, a lower bound to the log-likelihood function:</p>
 $$
-\ln p(\mathbf{x}) \geq \mathbb{E}_{\mathbf{z}\sim q_{\phi}(\mathbf{z})} \left[ \ln p(\mathbf{x} | \mathbf{z}) \right] - \mathbb{E}_{\mathbf{z}\sim q_{\phi}(\mathbf{z}|\mathbf{x})} \left[ \ln q_{\phi}(\mathbf{z}) -  \ln p(\mathbf{z}) \right] .
+\ln p(\mathbf{x}) \geq \mathbb{E}_{\mathbf{z}\sim q_{\phi}(\mathbf{z}|\mathbf{x})} \left[ \ln p(\mathbf{x} | \mathbf{z}) \right] - \mathbb{E}_{\mathbf{z}\sim q_{\phi}(\mathbf{z}|\mathbf{x})} \left[ \ln q_{\phi}(\mathbf{z}|\mathbf{x}) -  \ln p(\mathbf{z}) \right] .
 $$<p>There are two questions left to get the full picture of the VAEs:</p>
 <ol>
 <li>How to parameterize the distributions?</li>
@@ -262,7 +262,7 @@ $$<p>So as you can see, the whole math boils down to a relatively simple learnin
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
-<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="prompt input_prompt"></div>
 <div class="inner_cell">
     <div class="input_area">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">Encoder</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
@@ -339,7 +339,7 @@ $$<p>So as you can see, the whole math boils down to a relatively simple learnin
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
-<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="prompt input_prompt"></div>
 <div class="inner_cell">
     <div class="input_area">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">Decoder</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
@@ -466,7 +466,7 @@ $$<p>So as you can see, the whole math boils down to a relatively simple learnin
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
-<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="prompt input_prompt"></div>
 <div class="inner_cell">
     <div class="input_area">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">VAE</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
@@ -509,7 +509,7 @@ $$<p>So as you can see, the whole math boils down to a relatively simple learnin
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
-<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="prompt input_prompt"></div>
 <div class="inner_cell">
     <div class="input_area">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="c1"># Examples of neural networks used for parameterizing the encoder and the decoder.</span>
@@ -631,6 +631,7 @@ $$<p>where $\mathbf{z}_{k} \sim q_{\phi}(\mathbf{z}_{k}|\mathbf{x})$. Notice tha
 <p>(Ilse et al., 2020) Ilse, M., Tomczak, J. M., Louizos, C., &amp; Welling, M. (2020). DIVA: Domain invariant variational autoencoders. In Medical Imaging with Deep Learning (pp. 322-348). PMLR.</p>
 <p>(Jin et al., 2018) Jin, W., Barzilay, R., &amp; Jaakkola, T. (2018). Junction Tree Variational Autoencoder for Molecular Graph Generation. In International Conference on Machine Learning (pp. 2323-2332).</p>
 <p>(Jordan et al., 1999) Jordan, M. I., Ghahramani, Z., Jaakkola, T. S., &amp; Saul, L. K. (1999). An introduction to variational methods for graphical models. Machine learning, 37(2), 183-233.</p>
+<p>(Kim et al., 2018) Kim, Y., Wiseman, S., Miller, A., Sontag, D., &amp; Rush, A. (2018). Semi-amortized variational autoencoders. In International Conference on Machine Learning (pp. 2678-2687). PMLR.</p>
 <p>(Kingma &amp; Welling, 2013) Kingma, D. P., &amp; Welling, M. (2013). Auto-encoding variational bayes. arXiv preprint arXiv:1312.6114.</p>
 <p>(Kingma &amp; Welling, 2014) Kingma, D., &amp; Welling, M. (2014). Efficient gradient-based inference through transformations between bayes nets and neural nets. In International Conference on Machine Learning (pp. 1782-1790).</p>
 <p>(Kingma et al., 2014) Kingma, D. P., Mohamed, S., Jimenez Rezende, D., &amp; Welling, M. (2014). Semi-supervised learning with deep generative models. Advances in neural information processing systems, 27, 3581-3589.</p>
