@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" />
+
+<title>7_VAE_priors</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+
+
+<!-- MUST INCLUDE TO PROPERLY ADD HEADER! -->
+<link rel="stylesheet" type="text/css" media="screen" href="../../css/main.css" />
+<link rel="stylesheet" type="text/css" media="screen" href="../blog.css" />
+
+<!-- Loading mathjax macro -->
+<!-- Load mathjax -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_HTML"></script>
+    <!-- MathJax configuration -->
+    <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+        tex2jax: {
+            inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+            displayMath: [ ['$$','$$'], ["\\[","\\]"] ],
+            processEscapes: true,
+            processEnvironments: true
+        },
+        // Center justify equations in code and markdown cells. Elsewhere
+        // we use CSS to left justify single line equations in code cells.
+        displayAlign: 'center',
+        "HTML-CSS": {
+            styles: {'.MathJax_Display': {"margin": 0}},
+            linebreaks: { automatic: true }
+        }
+    });
+    </script>
+    <!-- End of mathjax configuration --></head>
+<body>
+  <div tabindex="-1" id="notebook" class="border-box-sizing">
+    <div class="container" id="notebook-container">
+
+<div id="header">
+  <ul>
+    <li><a href="../../index.html"><span>Home</span></a></li>
+    <li><a href="../../presentations.html"><span>Presentations</span></a></li>
+    <li><a href="../../deebmed.html"><span>DeeBMED</span></a></li>
+	<li><a href="../../people.html"><span>People</span></a></li>
+	<li><a href="../../blog.html"><span>BLOG</span></a></li>
+  </ul>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Introduction">Introduction<a class="anchor-link" href="#Introduction">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>In one of the previous posts, we discussed Variational Auto-Encoders (VAEs). They are latent-variable models that <em>encode</em> $\mathbf{x} \in \mathcal{X}^{D}$ (e.g., $\mathcal{X} = \mathbb{R}$ or $\mathcal{X} = \{0, 1, \ldots, 255\}$) to a latent space (e.g., $\mathbf{z} \in \mathbb{R}^{M}$) using a stochastic encoder $q_{\phi}(\mathbf{z}|\mathbf{x})$ and <em>decode</em> back using a stochastic decoder $p_{\theta}(\mathbf{x}|\mathbf{z})$. Additionally, there is a marginal distribution over $\mathbf{z}$'s, $p_{\lambda}(\mathbf{z})$. The learning objective for VAEs is the Evidence LOwer Bound (ELBO), a lower-bound to the log-likelihood function:</p>
+\begin{align}
+\mathbb{E}_{\mathbf{x} \sim p_{emp}(\mathbf{x})}[\ln p(\mathbf{x})] \geq &amp; \mathbb{E}_{\mathbf{x} \sim p_{emp}(\mathbf{x})}\left[\mathbb{E}_{q_{\phi}(\mathbf{z} | \mathbf{x})}\left[ \ln p_{\theta}(\mathbf{x} | \mathbf{z}) + \ln p_{\lambda}(\mathbf{z})-\ln q_{\phi}(\mathbf{z} | \mathbf{x})\right]\right] ,
+\end{align}<p>where we explicitely highlight the summation over training data, namely, the expected value with respect to $\mathbf{x}$'s from the empirical distribution $p_{emp}(\mathbf{x}) = \frac{1}{N} \sum_{n=1}^{N} \delta(\mathbf{x} - \mathbf{x}_{n})$, and $\delta(\cdot)$ is the Dirac delta.</p>
+<p>The ELBO consists of two parts, namely, the reconstruction error:</p>
+$$
+RE \stackrel{\Delta}{=} \mathbb{E}_{\mathbf{x} \sim p_{emp}(\mathbf{x})}\left[\mathbb{E}_{q_{\phi}(\mathbf{z} | \mathbf{x})}\left[ \ln p_{\theta}(\mathbf{x} | \mathbf{z}) \right] \right] ,
+$$<p>and the regularization term between the encoder and the prior:</p>
+$$
+\Omega \stackrel{\Delta}{=} \mathbb{E}_{\mathbf{x} \sim p_{emp}(\mathbf{x})}\left[\mathbb{E}_{q_{\phi}(\mathbf{z} | \mathbf{x})}\left[ \ln p_{\lambda}(\mathbf{z})-\ln q_{\phi}(\mathbf{z} | \mathbf{x}) \right] \right] .
+$$<p>Further, let us take a closer look at the regularization term $\Omega$:</p>
+\begin{align}
+\Omega &amp;= \mathbb{E}_{\mathbf{x} \sim p_{emp}(\mathbf{x})}\left[\mathbb{E}_{q_{\phi}(\mathbf{z} | \mathbf{x})}\left[ \ln p_{\lambda}(\mathbf{z})-\ln q_{\phi}(\mathbf{z} | \mathbf{x}) \right] \right] \\
+&amp;= \int p_{emp}(\mathbf{x}) \int q_{\phi}(\mathbf{z} | \mathbf{x}) \left[ \ln p_{\lambda}(\mathbf{z})-\ln q_{\phi}(\mathbf{z} | \mathbf{x}) \right] \mathrm{d} \mathbf{z} \mathrm{d}\mathbf{x}\\
+&amp;= \iint p_{emp}(\mathbf{x}) q_{\phi}(\mathbf{z} | \mathbf{x}) \left[ \ln p_{\lambda}(\mathbf{z})-\ln q_{\phi}(\mathbf{z} | \mathbf{x}) \right] \mathrm{d} \mathbf{z} \mathrm{d}\mathbf{x}\\
+&amp;= \iint \delta(\mathbf{x} - \mathbf{x}_{n}) q_{\phi}(\mathbf{z} | \mathbf{x}) \left[ \ln p_{\lambda}(\mathbf{z})-\ln q_{\phi}(\mathbf{z} | \mathbf{x}) \right] \mathrm{d} \mathbf{z} \mathrm{d}\mathbf{x}\\
+&amp;= \int \frac{1}{N} \sum_{n=1}^{N} q_{\phi}(\mathbf{z} | \mathbf{x}_{n}) \left[ \ln p_{\lambda}(\mathbf{z})-\ln q_{\phi}(\mathbf{z} | \mathbf{x}_{n}) \right] \mathrm{d} \mathbf{z} \\
+&amp;= \int \frac{1}{N} \sum_{n=1}^{N} q_{\phi}(\mathbf{z} | \mathbf{x}_{n}) \ln p_{\lambda}(\mathbf{z}) \mathrm{d} \mathbf{z} - \int \frac{1}{N} \sum_{n=1}^{N} q_{\phi}(\mathbf{z} | \mathbf{x}_{n}) \ln q_{\phi}(\mathbf{z} | \mathbf{x}_{n}) \mathrm{d} \mathbf{z} \\
+&amp;= \int q_{\phi}(\mathbf{z}) \ln p_{\lambda}(\mathbf{z}) \mathrm{d} \mathbf{z} - \int \sum_{n=1}^{N} \frac{1}{N} q_{\phi}(\mathbf{z} | \mathbf{x}_{n}) \ln q_{\phi}(\mathbf{z} | \mathbf{x}_{n}) \mathrm{d} \mathbf{z} \\
+&amp;= -\mathbb{C}\mathbb{E}\left[ q_{\phi}(\mathbf{z}) || p_{\lambda}(\mathbf{z}) \right] + \mathbb{H}\left[ q_{\phi}(\mathbf{z} | \mathbf{x}) \right] ,
+\end{align}<p>where we use the property of the Dirac delta: $\int \delta(a - a') f(a) \mathrm{d}a = f(a')$, and we use the notion of the <strong>aggregated posterior</strong> (Hoffman &amp; Johnson, 2016; Makhzani et al., 2015) defined as follows:</p>
+$$
+q(\mathbf{z})=\frac{1}{N} \sum_{n=1}^{N} q_{\phi}\left(\mathbf{z} | \mathbf{x}_{n}\right) .
+$$<p></p>
+<p>An example of the aggregated posterior is schematically depicted in Figure 1.</p>
+<p><img src="aggregated_posterior.png" width="300"></p>
+<p><strong>Figure 1.</strong> An example of the aggregated posterior. Individual points are encoded as Gaussians in the 2D latent space (magenta) and the mixture of variational posteriors (the aggregated posterior) is presented by contours.</p>
+<p>Eventually, we obtain two terms: <strong>(i)</strong> the first one, $\mathbb{C}\mathbb{E}\left[ q_{\phi}(\mathbf{z}) || p_{\lambda}(\mathbf{z}) \right] $, is the cross-entropy between the aggregated posterior and the prior, <strong>(ii)</strong> the second term, $\mathbb{H}\left[ q_{\phi}(\mathbf{z} | \mathbf{x}) \right]$, is the conditional entropy of $q_{\phi}(\mathbf{z} | \mathbf{x})$ with the empirical distribution $p_{emp}(\mathbf{x})$.</p>
+<p>I highly recommend doing this derivation step-by-step, it helps a lot in understanding what is going on here. Interestingly, there is another possibility to re-write $\Omega$ using three terms, with the total correlation (Chen et al., 2018). We will not use it here, so it is left as "homework".</p>
+<p>Anyway, one may ask why is it useful to re-write the ELBO? The answer is rather straightforward: We can analyze it from a different perspective! In this blog post, we will focus on the <strong>prior</strong>, an important component in the generative part that is very often neglected. Many Bayesianists are stating that a prior should not be learned. But VAEs are not Bayesian models, please remember that! Besides, who says we cannot learn the prior? As we will see shortly, a non-learnable prior could be pretty annoying, especially for a generation.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="What-does-ELBO-tell-us-about-the-prior?">What does ELBO tell us about the prior?<a class="anchor-link" href="#What-does-ELBO-tell-us-about-the-prior?">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Entropy</strong> Alright, we see that $\Omega$ consists of the cross-entropy and the entropy. Let us start with the entropy since it is easier to be analyzed. While optimizing, we want to maximize the ELBO, hence, we maximize the entropy:</p>
+$$
+\mathbb{H}\left[ q_{\phi}(\mathbf{z} | \mathbf{x}) \right] = - \int  \sum_{n=1}^{N} \frac{1}{N} q_{\phi}(\mathbf{z} | \mathbf{x}_{n}) \ln q_{\phi}(\mathbf{z} | \mathbf{x}_{n}) \mathrm{d} \mathbf{z} .
+$$<p>Before we make any conclusions, we should remember that we consider Gaussian encoders, $q_{\phi}(\mathbf{z} | \mathbf{x}) = \mathcal{N}\left(\mathbf{z}|\mu(\mathbf{x}), \sigma^{2}(\mathbf{x})\right)$. The entropy of a Gaussian distribution with a diagonal covariance matrix is equal $\frac{1}{2} \sum_{i} \ln \left[2e\pi \sigma_{i}^{2}\right]$. Then, the question is when this quantity is maximized? The answer is: $\sigma_{i}^{2} \rightarrow +\infty$. In other words, the entropy terms tries to strech the encoders as much as possible by enlarging their variances! Of course, this does not happen in practice because we use the encoder together with the decoder in the $RE$ term and the decoder tries to make the encoder as peaky as possible (i.e., ideally one $\mathbf{x}$ for one $\mathbf{z}$, like in the non-stochastic auto-encoder).</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Cross-Entropy</strong> The second term in $\Omega$ is the cross-entropy:</p>
+$$
+\mathbb{C}\mathbb{E}\left[ q_{\phi}(\mathbf{z}) || p_{\lambda}(\mathbf{z}) \right] = - \int q_{\phi}(\mathbf{z}) \ln p_{\lambda}(\mathbf{z}) \mathrm{d} \mathbf{z} .
+$$<p>The cross-entropy term influences the VAE in a different manner. First, we can ask the question how to interpret the cross-entropy between $q_{\phi}(\mathbf{z})$ and $p_{\lambda}(\mathbf{z})$. In general, the cross-entropy tells us the average number of bits (or rather nats because we use the natural logarithm) needed to identify an event drawn from $q_{\phi}(\mathbf{z}$ if a coding scheme used for it is $p_{\lambda}(\mathbf{z})$. Notice that in $\Omega$ we have the negative cross-entropy. Since we maximize the ELBO, it means we aim for minimizing $\mathbb{C}\mathbb{E}\left[ q_{\phi}(\mathbf{z}) || p_{\lambda}(\mathbf{z}) \right]$. This makes sense because we would like $q_{\phi}(\mathbf{z})$ to match $p_{\lambda}(\mathbf{z})$. And we have accidentally touched upon the most important issue here: What do we really want here? The cross-entropy forces the aggregated posterior to <strong>match</strong> the prior! That is the reason why we have this term here. If you think about it, it is a beautiful result that gives another connection between VAEs and the information theory.</p>
+<p>Alright, so we see what the cross-entropy does, but there are two possibilities here. First, the prior is fixed (<strong>non-learnable</strong>), e.g., the standard Gaussian prior. Then, optimizing the cross-entropy <em>pushes</em> the aggregated posterior to match the prior. It is schematically depicted in Figure 2. The prior acts like an anchor and the <em>amoeba</em> of the aggregated posterior moves so that to fit the prior. In practice, this optimization process is troublesome because the decoded forces the encoder to be peaked and, in the end, it is almost impossible to match a fixed-shaped prior. As a result, we obtain <strong>holes</strong>, namely, regions in the latent space where the aggregated posterior assigns low probability while the prior assigns (relatively) high probability (see a dark gray ellipse in Figure 2). This issue is especially apparent in generations because sampling from the prior, from the hole, may result in a sample that is of an extremely low quality. You can read more about it in (Rezende &amp; Viola, 2018).</p>
+<p><img src="non_learnable_prior.png" width="300"></p>
+<p><strong>Figure 2.</strong> An example of the effect of the cross-entropy optimization with a non-learnable prior. The aggregated posterior (purple contours) tries to match the non-learnable prior (in blue). The purple arrows indicate the change of the aggregated posterior. An example of a hole is presented as a dark gray ellipse.</p>
+<p>On the other hand, if we consider a <strong>learnable prior</strong>, the situation looks different. The optimization allows to change the aggregated posterior <strong>and</strong> the prior. As the consequence, both distributions try to match each other (see Figure 3). The problem of holes is then less apparent, especially if the prior is flexible enough. However, we can face other optimization issues when the prior and the aggregated posteriors chase each other. In practice, the learnable prior seems to be a better option but it is still an open question whether training all components at once is the best approach. Moreover, the learnable prior does not impose any specific constraint on the latent representation, e.g., sparsity. This could be another problem that would result in undesirable problems (e.g., non-smooth encoders).</p>
+<p><img src="learnable_prior.png" width="300"></p>
+<p><strong>Figure 3.</strong> An example of the effect of the cross-entropy optimization with a learnable prior. The aggregated posterior (purple contours) tries to match the learnable prior (blue contours). Notice that the aggregated posterior is modified to fit the prior (purple arrows), but also the prior is updated to cover the aggregated posterior (orange arrows).</p>
+<p>Eventually, we can ask the fundamental question: What is the <em>best</em> prior then?! The answer is already known and is hidden in the cross-entropy term: It is the aggregated posterior. If we take $p_{\lambda}(\mathbf{z}) = \sum_{n=1}^{N} \frac{1}{N} q_{\phi}(\mathbf{z} | \mathbf{x}_{n})$, then, theoretically, the cross-entropy equals the entropy of $q_{\phi}(\mathbf{z})$ and the regularization term $\Omega$ is smallest. However, in practice, this is infeasible because <strong>(i)</strong> we cannot sum over tens of thousands of points and backpropagate through them, <strong>(i)</strong> this result is fine from the theoretical point of view, however, the optimization process is stochastic and could cause additional errors, <strong>(iii)</strong> as mentioned earlier, choosing the aggregated posterior as the prior does not constrain the latent representation in any obvious manner and, thus, the encoder could behave unpredictably, <strong>(iv)</strong> the aggregated posterior may work well if the get $N \rightarrow +\infty$ points, because then we can get any distribution, however, this is not the case in practice and it contradicts also (i). As a result, we can keep this theoretical solution in mind and formulate <strong>approximations</strong> to it that are computationally tractable. In the next sections, we will discuss a few of them.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Standard-Gaussian">Standard Gaussian<a class="anchor-link" href="#Standard-Gaussian">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>The vanilla implementation of the VAE assumes a standard Gaussian marginal (prior) over $\mathbf{z}$, $p_{\lambda}(\mathbf{z}) = \mathcal{N}(\mathbf{z}|0,\mathrm{I})$. This prior is simple, non-trainable (i.e., no extra parameters to learn), and easy to implement. In other words, it is amazing! However, as discussed above, the standard normal distribution could lead to very poor hidden representations with holes resulting from the mismatch between the aggregated posterior and the prior.</p>
+<p>To strengthen our discussion, we train a small VAE with the standard Gaussian prior and two-dimensional latent space. In Figure 4, we present samples from the encoder for the test data (black dots) and the contour plot for the standard prior. We can clearly see holes where the aggregated posterior does not assign any points (i.e., the mismatch between the prior and the aggregated posterior).</p>
+<p><img src="vae_standard_2D_latent.png" width="300"></p>
+<p><strong>Figure 4.</strong> An example of the standard Gaussian prior (contours) and the samples from the aggregated posterior (black dots).</p>
+<p>The code for the standard Gaussian prior is presented below.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt"></div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">StandardPrior</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">L</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">StandardPrior</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">L</span> <span class="o">=</span> <span class="n">L</span> 
+
+        <span class="c1"># params weights</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">means</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">L</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logvars</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">L</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_params</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">means</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">logvars</span>
+
+    <span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">L</span><span class="p">)</span>
+    
+    <span class="k">def</span> <span class="nf">log_prob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">log_standard_normal</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Mixture-of-Gaussians">Mixture of Gaussians<a class="anchor-link" href="#Mixture-of-Gaussians">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>If we take a closer look at the aggregated posterior, we immediately notice that it is a mixture model, and a mixture of Gaussians, to be more precise. Therefore, we can use the Mixture of Gaussians (MoG) prior with $K$ components:</p>
+$$
+p_{\lambda}(\mathbf{z}) = \sum_{k=1}^{K} w_{k} \mathcal{N}(\mathbf{z}|\mu_k, \sigma_{k}^{2}) ,
+$$<p>where $\lambda = \left\{ \{w_k\}, \{\mu_k\}, \{\sigma_{k}^{2}\} \right\}$ are trainable parameters.</p>
+<p>Similarly to the standard Gaussian prior, we train a small VAE with the mixture of Gaussians prior (with $K=16$) and two-dimensional latent space. In Figure 5, we present samples from the encoder for the test data (black dots) and the contour plot for the MoG prior. Comparing to the standard Gaussian prior, the MoG prior fits better the aggregated posterior, allowing to <em>patch</em> holes.</p>
+<p><img src="vae_mog_16_2D_latent.png" width="300"></p>
+<p><strong>Figure 5.</strong> An example of the MoG prior (contours) and the samples from the aggregated posterior (black dots).</p>
+<p>An example of the code is presented below.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt"></div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">MoGPrior</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">L</span><span class="p">,</span> <span class="n">num_components</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">MoGPrior</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">L</span> <span class="o">=</span> <span class="n">L</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_components</span> <span class="o">=</span> <span class="n">num_components</span>
+
+        <span class="c1"># params</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">means</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">num_components</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">L</span><span class="p">)</span><span class="o">*</span><span class="n">multiplier</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logvars</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">num_components</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">L</span><span class="p">))</span>
+
+        <span class="c1"># mixing weights</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">w</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">num_components</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">get_params</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">means</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">logvars</span>
+
+    <span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">):</span>
+        <span class="c1"># mu, lof_var</span>
+        <span class="n">means</span><span class="p">,</span> <span class="n">logvars</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_params</span><span class="p">()</span>
+
+        <span class="c1"># mixing probabilities</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">w</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">w</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+
+        <span class="c1"># pick components</span>
+        <span class="n">indexes</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">multinomial</span><span class="p">(</span><span class="n">w</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">,</span> <span class="n">replacement</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="c1"># means and logvars</span>
+        <span class="n">eps</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">L</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">batch_size</span><span class="p">):</span>
+            <span class="n">indx</span> <span class="o">=</span> <span class="n">indexes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">z</span> <span class="o">=</span> <span class="n">means</span><span class="p">[[</span><span class="n">indx</span><span class="p">]]</span> <span class="o">+</span> <span class="n">eps</span><span class="p">[[</span><span class="n">i</span><span class="p">]]</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">logvars</span><span class="p">[[</span><span class="n">indx</span><span class="p">]])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">z</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">z</span><span class="p">,</span> <span class="n">means</span><span class="p">[[</span><span class="n">indx</span><span class="p">]]</span> <span class="o">+</span> <span class="n">eps</span><span class="p">[[</span><span class="n">i</span><span class="p">]]</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">logvars</span><span class="p">[[</span><span class="n">indx</span><span class="p">]])),</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">z</span>
+
+    <span class="k">def</span> <span class="nf">log_prob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
+        <span class="c1"># mu, lof_var</span>
+        <span class="n">means</span><span class="p">,</span> <span class="n">logvars</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_params</span><span class="p">()</span>
+
+        <span class="c1"># mixing probabilities</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">w</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="c1"># log-mixture-of-Gaussians</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="n">z</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="c1"># 1 x B x L</span>
+        <span class="n">means</span> <span class="o">=</span> <span class="n">means</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="c1"># K x 1 x L</span>
+        <span class="n">logvars</span> <span class="o">=</span> <span class="n">logvars</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="c1"># K x 1 x L</span>
+
+        <span class="n">log_p</span> <span class="o">=</span> <span class="n">log_normal_diag</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">means</span><span class="p">,</span> <span class="n">logvars</span><span class="p">)</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">w</span><span class="p">)</span> <span class="c1"># K x B x L</span>
+        <span class="n">log_prob</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">logsumexp</span><span class="p">(</span><span class="n">log_p</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="c1"># B x L</span>
+
+        <span class="k">return</span> <span class="n">log_prob</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="VampPrior">VampPrior<a class="anchor-link" href="#VampPrior">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>In (Tomczak &amp; Welling, 2018), it was noticed that we can improve on the MoG prior and approximate the aggregated posterior by introducing <strong>pseudo-inputs</strong>:</p>
+$$
+p_{\lambda}(\mathbf{z}) = \frac{1}{N} \sum_{k=1}^{K} q_{\phi}(\mathbf{z}|\mathbf{u}_{k}),
+$$<p>where $\lambda = \left\{ \phi, \{\mathbf{u}_{k}^{2}\} \right\}$ are trainable parameters, $\mathbf{u}_{k} \in \mathcal{X}^{D}$ is a pseudo-input. Notice that $\phi$ is a part of the trainable parameters. The idea of pseudo-input is to randomly initialize objects that mimick observable variables (e.g., images) and learn them by backpropagation.</p>
+<p>This approximation to the aggregated posterior is called the <strong>variational mixture of posterior prior</strong>, VampPrior for short. In (Tomczak &amp; Welling, 2018) you can find some interesting properties and further analysis of the Vampprior. The main drawback of the VampPrior lies in initializing the pseudo-inputs, however, it serves as a good proxy to the aggregated posterior that improves the generative quality of the VAE, e.g., (Alemi et al., 2018; Lavda et al., 2020; Lin &amp; Clark, 2020).</p>
+<p>(Alemi et al., 2018) presented a nice connection of the VampPrior with the information-theoretic perspective on the VAE. They further proposed to introduce learnable probabilities of the components:</p>
+$$
+p_{\lambda}(\mathbf{z}) = \sum_{k=1}^{K} w_{k} q_{\phi}(\mathbf{z}|\mathbf{u}_{k}),
+$$<p>to allow the VampPrior to select more relevant components (i.e., pseudo-inputs).</p>
+<p>As in the previous cases, we train a small VAE with the VampPrior (with $K=16$) and a two-dimensional latent space. In Figure 6, we present samples from the encoder for the test data (black dots) and the contour plot for the VampPrior. Similar to the MoG prior, the VampPrior fits better the aggregated posterior and has fewer holes. In this case, we can see that the VampPrior allows the encoders to spread across the latent space (notice the values).</p>
+<p><img src="vae_vampprior_16_2D_latent.png" width="900"></p>
+<p><strong>Figure 6.</strong> An example of the VampPrior (contours) and the samples from the aggregated posterior (black dots).</p>
+<p>An example of an implementation of the VampPrior is presented below.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt"></div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">VampPrior</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">L</span><span class="p">,</span> <span class="n">D</span><span class="p">,</span> <span class="n">num_vals</span><span class="p">,</span> <span class="n">encoder</span><span class="p">,</span> <span class="n">num_components</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">VampPrior</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">L</span> <span class="o">=</span> <span class="n">L</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">D</span> <span class="o">=</span> <span class="n">D</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_vals</span> <span class="o">=</span> <span class="n">num_vals</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span> <span class="o">=</span> <span class="n">encoder</span>
+
+        <span class="c1"># pseudoinputs</span>
+        <span class="n">u</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">num_components</span><span class="p">,</span> <span class="n">D</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_vals</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">u</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">u</span><span class="p">)</span>
+
+        <span class="c1"># mixing weights</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">w</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">u</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span> <span class="c1"># K x 1 x 1</span>
+
+    <span class="k">def</span> <span class="nf">get_params</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># u-&gt;encoder-&gt;mu, lof_var</span>
+        <span class="n">mean_vampprior</span><span class="p">,</span> <span class="n">logvar_vampprior</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">u</span><span class="p">)</span> <span class="c1">#(K x L), (K x L)</span>
+        <span class="k">return</span> <span class="n">mean_vampprior</span><span class="p">,</span> <span class="n">logvar_vampprior</span>
+
+    <span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">):</span>
+        <span class="c1"># u-&gt;encoder-&gt;mu, lof_var</span>
+        <span class="n">mean_vampprior</span><span class="p">,</span> <span class="n">logvar_vampprior</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_params</span><span class="p">()</span>
+
+        <span class="c1"># mixing probabilities</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">w</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="c1"># K x 1 x 1 </span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">w</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+
+        <span class="c1"># pick components</span>
+        <span class="n">indexes</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">multinomial</span><span class="p">(</span><span class="n">w</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">,</span> <span class="n">replacement</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="c1"># means and logvars</span>
+        <span class="n">eps</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">L</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">batch_size</span><span class="p">):</span>
+            <span class="n">indx</span> <span class="o">=</span> <span class="n">indexes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">z</span> <span class="o">=</span> <span class="n">mean_vampprior</span><span class="p">[[</span><span class="n">indx</span><span class="p">]]</span> <span class="o">+</span> <span class="n">eps</span><span class="p">[[</span><span class="n">i</span><span class="p">]]</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">logvar_vampprior</span><span class="p">[[</span><span class="n">indx</span><span class="p">]])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">z</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">z</span><span class="p">,</span> <span class="n">mean_vampprior</span><span class="p">[[</span><span class="n">indx</span><span class="p">]]</span> <span class="o">+</span> <span class="n">eps</span><span class="p">[[</span><span class="n">i</span><span class="p">]]</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">logvar_vampprior</span><span class="p">[[</span><span class="n">indx</span><span class="p">]])),</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">z</span>
+
+    <span class="k">def</span> <span class="nf">log_prob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
+        <span class="c1"># u-&gt;encoder-&gt;mu, lof_var</span>
+        <span class="n">mean_vampprior</span><span class="p">,</span> <span class="n">logvar_vampprior</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_params</span><span class="p">()</span> <span class="c1"># (K x L) &amp; (K x L)</span>
+
+        <span class="c1"># mixing probabilities</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">w</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="c1"># K x 1 x 1</span>
+
+        <span class="c1"># log-mixture-of-Gaussians</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="n">z</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="c1"># 1 x B x L</span>
+        <span class="n">mean_vampprior</span> <span class="o">=</span> <span class="n">mean_vampprior</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="c1"># K x 1 x L</span>
+        <span class="n">logvar_vampprior</span> <span class="o">=</span> <span class="n">logvar_vampprior</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="c1"># K x 1 x L</span>
+
+        <span class="n">log_p</span> <span class="o">=</span> <span class="n">log_normal_diag</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">mean_vampprior</span><span class="p">,</span> <span class="n">logvar_vampprior</span><span class="p">)</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">w</span><span class="p">)</span> <span class="c1"># K x B x L</span>
+        <span class="n">log_prob</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">logsumexp</span><span class="p">(</span><span class="n">log_p</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="c1"># B x L</span>
+
+        <span class="k">return</span> <span class="n">log_prob</span> <span class="c1"># B </span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="GTM:-Generative-topographic-mapping">GTM: Generative topographic mapping<a class="anchor-link" href="#GTM:-Generative-topographic-mapping">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>In fact, we can use any density estimator to model the prior. In (Bishop et al., 1998) a density estimator called <strong>generative topographic mapping</strong> (GTM) was proposed that defines a grid of $K$ points in a low-dimensional space, $\mathbf{u} \in \mathbb{R}^{C}$, namely:</p>
+$$
+p(\mathbf{u}) = \sum_{k=1}^{K} w_{k} \delta(\mathbf{u} - \mathbf{u}_{k})
+$$<p>that is further transformed to a higher-dimensional space by a transformation $g_{\gamma}$. The transformation $g_{\gamma}$ predicts parameters of a distribution, e.g., the Gaussian distribution, thus, $g_{\gamma}: \mathbb{R}^{C} \rightarrow \mathbb{R}^{2\times M}$. Eventually, we can define the distribution as follows:</p>
+\begin{align}
+p_{\lambda}(\mathbf{z}) &amp;= \int p(\mathbf{u}) \mathcal{N}\left( \mathbf{z} | \mu_{g}(\mathbf{u}), \sigma_{g}^{2}(\mathbf{u}) \right) \mathrm{d} \mathbf{u} \\
+&amp;= \sum_{k=1}^{K} w_{k} \mathcal{N}\left( \mathbf{z} | \mu_{g}(\mathbf{u}_k), \sigma_{g}^{2}(\mathbf{u}_k) \right) ,
+\end{align}<p>where $\mu_{g}(\mathbf{u}), \sigma_{g}^{2}$ result from the transformation $g_{\gamma}(\mathbf{u})$.</p>
+<p>For instance, for $C=2$ and $K=3$, we can define the following grid: $\mathbf{u} \in \{ [-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [0, 1], [1, -1], [1, 0], [1, -1] \}$. Notice that the grid is fixed! And only the transformation (e.g., a neural network) $g_{\gamma}$ is trained.</p>
+<p>As in the previous cases, we train a small VAE with the GTM-based prior (with $K=16$, i.e., a $4\times 4$ grid) and two-dimensional latent space. In Figure 7, we present samples from the encoder for the test data (black dots) and the contour plot for the GTM-based prior. Similar to the MoG prior and the VampPrior, the GTM-based prior learns a pretty flexible distribution.</p>
+<p><img src="vae_gtm_4_2D_latent.png" width="300"></p>
+<p><strong>Figure 7.</strong> An example of the GTM-based prior (contours) and the samples from the aggregated posterior (black dots).</p>
+<p>An example of an implementation of the GTM-based prior is presented below.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt"></div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">GTMPrior</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">L</span><span class="p">,</span> <span class="n">gtm_net</span><span class="p">,</span> <span class="n">num_components</span><span class="p">,</span> <span class="n">u_min</span><span class="o">=-</span><span class="mf">1.</span><span class="p">,</span> <span class="n">u_max</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
+    <span class="nb">super</span><span class="p">(</span><span class="n">GTMPrior</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">L</span> <span class="o">=</span> <span class="n">L</span>
+
+    <span class="c1"># 2D manifold</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">u</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">num_components</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="c1"># K**2 x 2</span>
+    <span class="n">u1</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">u_min</span><span class="p">,</span> <span class="n">u_max</span><span class="p">,</span> <span class="n">steps</span><span class="o">=</span><span class="n">num_components</span><span class="p">)</span>
+    <span class="n">u2</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">u_min</span><span class="p">,</span> <span class="n">u_max</span><span class="p">,</span> <span class="n">steps</span><span class="o">=</span><span class="n">num_components</span><span class="p">)</span>
+
+    <span class="n">k</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_components</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_components</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">u</span><span class="p">[</span><span class="n">k</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">u1</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">u</span><span class="p">[</span><span class="n">k</span><span class="p">,</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">u2</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="n">k</span> <span class="o">+</span> <span class="mi">1</span>
+
+    <span class="c1"># gtm network: u -&gt; z</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">gtm_net</span> <span class="o">=</span> <span class="n">gtm_net</span>
+
+    <span class="c1"># mixing weights</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">w</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">num_components</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">get_params</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># u-&gt;z</span>
+        <span class="n">h_gtm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gtm_net</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">u</span><span class="p">)</span> <span class="c1">#K**2 x 2L</span>
+        <span class="n">mean_gtm</span><span class="p">,</span> <span class="n">logvar_gtm</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="n">h_gtm</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="c1"># K**2 x L and K**2 x L</span>
+        <span class="k">return</span> <span class="n">mean_gtm</span><span class="p">,</span> <span class="n">logvar_gtm</span>
+
+    <span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">):</span>
+        <span class="c1"># u-&gt;z</span>
+        <span class="n">mean_gtm</span><span class="p">,</span> <span class="n">logvar_gtm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_params</span><span class="p">()</span>
+
+        <span class="c1"># mixing probabilities</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">w</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">w</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+
+        <span class="c1"># pick components</span>
+        <span class="n">indexes</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">multinomial</span><span class="p">(</span><span class="n">w</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">,</span> <span class="n">replacement</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="c1"># means and logvars</span>
+        <span class="n">eps</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">L</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">batch_size</span><span class="p">):</span>
+            <span class="n">indx</span> <span class="o">=</span> <span class="n">indexes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">z</span> <span class="o">=</span> <span class="n">mean_gtm</span><span class="p">[[</span><span class="n">indx</span><span class="p">]]</span> <span class="o">+</span> <span class="n">eps</span><span class="p">[[</span><span class="n">i</span><span class="p">]]</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">logvar_gtm</span><span class="p">[[</span><span class="n">indx</span><span class="p">]])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">z</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">z</span><span class="p">,</span> <span class="n">mean_gtm</span><span class="p">[[</span><span class="n">indx</span><span class="p">]]</span> <span class="o">+</span> <span class="n">eps</span><span class="p">[[</span><span class="n">i</span><span class="p">]]</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">logvar_gtm</span><span class="p">[[</span><span class="n">indx</span><span class="p">]])),</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">z</span>
+
+    <span class="k">def</span> <span class="nf">log_prob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
+        <span class="c1"># u-&gt;z</span>
+        <span class="n">mean_gtm</span><span class="p">,</span> <span class="n">logvar_gtm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_params</span><span class="p">()</span>
+
+        <span class="c1"># log-mixture-of-Gaussians</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="n">z</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="c1"># 1 x B x L</span>
+        <span class="n">mean_gtm</span> <span class="o">=</span> <span class="n">mean_gtm</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="c1"># K**2 x 1 x L</span>
+        <span class="n">logvar_gtm</span> <span class="o">=</span> <span class="n">logvar_gtm</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="c1"># K**2 x 1 x L</span>
+
+        <span class="n">w</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">w</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="n">log_p</span> <span class="o">=</span> <span class="n">log_normal_diag</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">mean_gtm</span><span class="p">,</span> <span class="n">logvar_gtm</span><span class="p">)</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">w</span><span class="p">)</span> <span class="c1"># K**2 x B x L</span>
+        <span class="n">log_prob</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">logsumexp</span><span class="p">(</span><span class="n">log_p</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="c1"># B x L</span>
+
+        <span class="k">return</span> <span class="n">log_prob</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt"></div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">gtm_net</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">M</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">Tanh</span><span class="p">(),</span>
+                        <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">M</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">Tanh</span><span class="p">(),</span>
+                        <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">L</span><span class="p">))</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="GTM-VampPrior">GTM-VampPrior<a class="anchor-link" href="#GTM-VampPrior">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>As mentioned earlier, the main issue with the VampPrior is the initialization of the pseudo-inputs. Instead, we can use the idea of the GTM to learn the pseudoinputs. Combining these two approaches, we get the following prior:</p>
+$$
+p_{\lambda}(\mathbf{z}) = \sum_{k=1}^{K} w_{k} q_{\phi} \left( \mathbf{z} | g_{\gamma}(\mathbf{u}_k) \right) ,
+$$<p>where we first define a grid in a low-dimensional space, $\{\mathbf{u}_{k}\}$, and then transform them to $\mathcal{X}^{D}$ using the transformation $g_{\gamma}$.</p>
+<p>Now, we train a small VAE with the GTM-VampPrior (with $K=16$, i.e., a $4\times 4$ grid) and a two-dimensional latent space. In Figure 8, we present samples from the encoder for the test data (black dots) and the contour plot for the GTM-VampPrior. Again, this mixture-based prior allows to wrap the points (the aggregated posterior) and assign the probability to proper regions.</p>
+<p><img src="vae_gtm-vampprior_4_2D_latent.png" width="300"></p>
+<p><strong>Figure 8.</strong> An example of the GTM-VampPrior (contours) and the samples from the aggregated posterior (black dots).</p>
+<p>An example of an implementation of the GTM-VampPrior is presented below.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt"></div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">GTMVampPrior</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">L</span><span class="p">,</span> <span class="n">D</span><span class="p">,</span> <span class="n">gtm_net</span><span class="p">,</span> <span class="n">encoder</span><span class="p">,</span> <span class="n">num_points</span><span class="p">,</span> <span class="n">u_min</span><span class="o">=-</span><span class="mf">10.</span><span class="p">,</span> <span class="n">u_max</span><span class="o">=</span><span class="mf">10.</span><span class="p">,</span> <span class="n">num_vals</span><span class="o">=</span><span class="mi">255</span><span class="p">):</span>
+    <span class="nb">super</span><span class="p">(</span><span class="n">GTMVampPrior</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">L</span> <span class="o">=</span> <span class="n">L</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">D</span> <span class="o">=</span> <span class="n">D</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">num_vals</span> <span class="o">=</span> <span class="n">num_vals</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span> <span class="o">=</span> <span class="n">encoder</span>
+
+    <span class="c1"># 2D manifold</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">u</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">num_points</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="c1"># K**2 x 2</span>
+    <span class="n">u1</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">u_min</span><span class="p">,</span> <span class="n">u_max</span><span class="p">,</span> <span class="n">steps</span><span class="o">=</span><span class="n">num_points</span><span class="p">)</span>
+    <span class="n">u2</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">u_min</span><span class="p">,</span> <span class="n">u_max</span><span class="p">,</span> <span class="n">steps</span><span class="o">=</span><span class="n">num_points</span><span class="p">)</span>
+
+    <span class="n">k</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_points</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_points</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">u</span><span class="p">[</span><span class="n">k</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">u1</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">u</span><span class="p">[</span><span class="n">k</span><span class="p">,</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">u2</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="n">k</span> <span class="o">+</span> <span class="mi">1</span>
+
+    <span class="c1"># gtm network: u -&gt; x</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">gtm_net</span> <span class="o">=</span> <span class="n">gtm_net</span>
+
+    <span class="c1"># mixing weights</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">w</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">num_points</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">get_params</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># u-&gt;gtm_net-&gt;u_x</span>
+        <span class="n">h_gtm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gtm_net</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">u</span><span class="p">)</span> <span class="c1">#K x D</span>
+        <span class="n">h_gtm</span> <span class="o">=</span> <span class="n">h_gtm</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_vals</span>
+        <span class="c1"># u_x-&gt;encoder-&gt;mu, lof_var</span>
+        <span class="n">mean_vampprior</span><span class="p">,</span> <span class="n">logvar_vampprior</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">h_gtm</span><span class="p">)</span> <span class="c1">#(K x L), (K x L)</span>
+        <span class="k">return</span> <span class="n">mean_vampprior</span><span class="p">,</span> <span class="n">logvar_vampprior</span>
+
+    <span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">):</span>
+    <span class="c1"># u-&gt;encoder-&gt;mu, lof_var</span>
+    <span class="n">mean_vampprior</span><span class="p">,</span> <span class="n">logvar_vampprior</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_params</span><span class="p">()</span>
+
+    <span class="c1"># mixing probabilities</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">w</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">w</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+
+        <span class="c1"># pick components</span>
+        <span class="n">indexes</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">multinomial</span><span class="p">(</span><span class="n">w</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">,</span> <span class="n">replacement</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="c1"># means and logvars</span>
+        <span class="n">eps</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">L</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">batch_size</span><span class="p">):</span>
+            <span class="n">indx</span> <span class="o">=</span> <span class="n">indexes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">z</span> <span class="o">=</span> <span class="n">mean_vampprior</span><span class="p">[[</span><span class="n">indx</span><span class="p">]]</span> <span class="o">+</span> <span class="n">eps</span><span class="p">[[</span><span class="n">i</span><span class="p">]]</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">logvar_vampprior</span><span class="p">[[</span><span class="n">indx</span><span class="p">]])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">z</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">z</span><span class="p">,</span> <span class="n">mean_vampprior</span><span class="p">[[</span><span class="n">indx</span><span class="p">]]</span> <span class="o">+</span> <span class="n">eps</span><span class="p">[[</span><span class="n">i</span><span class="p">]]</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">logvar_vampprior</span><span class="p">[[</span><span class="n">indx</span><span class="p">]])),</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">z</span>
+
+    <span class="k">def</span> <span class="nf">log_prob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
+        <span class="c1"># u-&gt;encoder-&gt;mu, lof_var</span>
+        <span class="n">mean_vampprior</span><span class="p">,</span> <span class="n">logvar_vampprior</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_params</span><span class="p">()</span>
+
+        <span class="c1"># mixing probabilities</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">w</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="c1"># log-mixture-of-Gaussians</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="n">z</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="c1"># 1 x B x L</span>
+        <span class="n">mean_vampprior</span> <span class="o">=</span> <span class="n">mean_vampprior</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="c1"># K x 1 x L</span>
+        <span class="n">logvar_vampprior</span> <span class="o">=</span> <span class="n">logvar_vampprior</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="c1"># K x 1 x L</span>
+
+        <span class="n">log_p</span> <span class="o">=</span> <span class="n">log_normal_diag</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">mean_vampprior</span><span class="p">,</span> <span class="n">logvar_vampprior</span><span class="p">)</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">w</span><span class="p">)</span> <span class="c1"># K x B x L</span>
+        <span class="n">log_prob</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">logsumexp</span><span class="p">(</span><span class="n">log_p</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="c1"># B x L</span>
+
+        <span class="k">return</span> <span class="n">log_prob</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Flow-based-prior">Flow-based prior<a class="anchor-link" href="#Flow-based-prior">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>The last distribution we want to discuss here is a flow-based prior. Since flow-based models can be used to estimate any distribution, it is almost obvious to use them for approximating the aggregated posterior. Here, we use the implementation of the RealNVP presented before.</p>
+<p>As in the previous cases, we train a small VAE with the flow-based prior and two-dimensional latent space. In Figure 9, we present samples from the encoder for the test data (black dots) and the contour plot for the flow-based prior. Similar to the previous mixture-based priors, the flow-based prior allows approximating the aggregated posterior very well. This is in line with many papers using flows as the prior in the VAE (Chen et al., 2016; Gatopoulos &amp; Tomczak, 2020), however, we must remember that the flexibility of the flow-based prior comes with the cost of an increased number of parameters and potential training issues inherited from the flows.</p>
+<p><img src="vae_flow_2D_latent.png" width="600"></p>
+<p><strong>Figure 9.</strong> An example of the flow-based prior (contours) and the samples from the aggregated posterior (black dots).</p>
+<p>An example of an implementation of the flow-based prior is presented below.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt"></div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">FlowPrior</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nets</span><span class="p">,</span> <span class="n">nett</span><span class="p">,</span> <span class="n">num_flows</span><span class="p">,</span> <span class="n">D</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FlowPrior</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">D</span> <span class="o">=</span> <span class="n">D</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">t</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">([</span><span class="n">nett</span><span class="p">()</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_flows</span><span class="p">)])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">s</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">([</span><span class="n">nets</span><span class="p">()</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_flows</span><span class="p">)])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_flows</span> <span class="o">=</span> <span class="n">num_flows</span>
+
+    <span class="k">def</span> <span class="nf">coupling</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">forward</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="p">(</span><span class="n">xa</span><span class="p">,</span> <span class="n">xb</span><span class="p">)</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">s</span><span class="p">[</span><span class="n">index</span><span class="p">](</span><span class="n">xa</span><span class="p">)</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">t</span><span class="p">[</span><span class="n">index</span><span class="p">](</span><span class="n">xa</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">forward</span><span class="p">:</span>
+            <span class="c1">#yb = f^{-1}(x)</span>
+            <span class="n">yb</span> <span class="o">=</span> <span class="p">(</span><span class="n">xb</span> <span class="o">-</span> <span class="n">t</span><span class="p">)</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">s</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1">#xb = f(y)</span>
+            <span class="n">yb</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="o">*</span> <span class="n">xb</span> <span class="o">+</span> <span class="n">t</span>
+
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">xa</span><span class="p">,</span> <span class="n">yb</span><span class="p">),</span> <span class="mi">1</span><span class="p">),</span> <span class="n">s</span>
+
+    <span class="k">def</span> <span class="nf">permute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">x</span><span class="o">.</span><span class="n">flip</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">f</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">log_det_J</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">new_zeros</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">x</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_flows</span><span class="p">):</span>
+            <span class="n">z</span><span class="p">,</span> <span class="n">s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coupling</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">forward</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">permute</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+            <span class="n">log_det_J</span> <span class="o">=</span> <span class="n">log_det_J</span> <span class="o">-</span> <span class="n">s</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">z</span><span class="p">,</span> <span class="n">log_det_J</span>
+
+    <span class="k">def</span> <span class="nf">f_inv</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">z</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_flows</span><span class="p">)):</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">permute</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+            <span class="n">x</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coupling</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">forward</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">x</span>
+
+    <span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">):</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">)</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">f_inv</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">x</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">log_prob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">z</span><span class="p">,</span> <span class="n">log_det_J</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">log_p</span> <span class="o">=</span> <span class="p">(</span><span class="n">log_standard_normal</span><span class="p">(</span><span class="n">z</span><span class="p">)</span> <span class="o">+</span> <span class="n">log_det_J</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">log_p</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="That's-it?">That's it?<a class="anchor-link" href="#That's-it?">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>In practice, we can use any density estimator to model $p_{\lambda}(\mathbf{z})$. For instance, we can use an autoregressive model (Habibian et al., 2019) or more advanced approaches like resampled priors (Bauer &amp; Mnih, 2019) or hierarchical priors (Lin &amp; Clark, 2020). Therefore, there are many options! However, there is still an open question <strong>how</strong> to do that and <strong>what</strong> role the prior (the marginal) should play. As I mentioned in the beginning, Bayesianists would say that the marginal should impose some constraints on the latent space or, in other words, our prior knowledge about it. I am a Bayesiast deep down in my heart and this way of thinking is very appealing to me. However, it is still unclear what is a good latent representation. This question is as old as mathematical modeling. I think that it would be interesting to look at optimization techniques, maybe applying a gradient-based method to all parameters/weights at once is not the best solution. Anyhow, I am pretty sure that modeling the prior is more important than many people think and plays a crucial role in VAEs.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="References">References<a class="anchor-link" href="#References">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>(Alemi et al., 2018) Alemi, A., Poole, B., Fischer, I., Dillon, J., Saurous, R. A., &amp; Murphy, K. (2018, July). Fixing a broken ELBO. International Conference on Machine Learning (pp. 159-168). PMLR.</p>
+<p>(Bauer &amp; Mnih, 2019) Bauer, M., &amp; Mnih, A. (2019). Resampled priors for variational autoencoders. In The 22nd International Conference on Artificial Intelligence and Statistics (pp. 66-75). PMLR.</p>
+<p>(Bishop et al., 1998) Bishop, C. M., Svensen, M., &amp; Williams, C. K. (1998). GTM: The generative topographic mapping. Neural computation, 10(1), 215-234.</p>
+<p>(Chen et al., 2016) Chen, X., Kingma, D. P., Salimans, T., Duan, Y., Dhariwal, P., Schulman, J., Sutskever, I., &amp; Abbeel, P. (2016). Variational lossy autoencoder. arXiv preprint arXiv:1611.02731.</p>
+<p>(Chen et al., 2018) Chen, R. T., Li, X., Grosse, R., &amp; Duvenaud, D. (2018). Isolating sources of disentanglement in VAEs. In Proceedings of the 32nd International Conference on Neural Information Processing Systems (pp. 2615-2625).</p>
+<p>(Gatopoulos &amp; Tomczak, 2020) Gatopoulos, I., &amp; Tomczak, J. M. (2020). Self-Supervised Variational Auto-Encoders. arXiv preprint arXiv:2010.02014.</p>
+<p>(Habibian et al., 2019) Habibian, A., Rozendaal, T. V., Tomczak, J. M., &amp; Cohen, T. S. (2019). Video compression with rate-distortion autoencoders. In Proceedings of the IEEE International Conference on Computer Vision (pp. 7033-7042).</p>
+<p>(Hoffman &amp; Johnson, 2016) Hoffman, M. D., &amp; Johnson, M. J. (2016). Elbo surgery: yet another way to carve up the variational evidence lower bound. In Workshop in Advances in Approximate Bayesian Inference, NIPS (Vol. 1, p. 2).</p>
+<p>(Lavda et al., 2020) Lavda, F., Gregorová, M., &amp; Kalousis, A. (2020). Data-dependent conditional priors for unsupervised learning of multimodal data. Entropy, 22(8), 888.</p>
+<p>(Lin &amp; Clark, 2020) Lin, S., &amp; Clark, R. (2020). Ladder: Latent data distribution modelling with a generative prior. arXiv preprint arXiv:2009.00088.</p>
+<p>(Rezende &amp; Viola, 2018) Rezende, D. J., &amp; Viola, F. (2018). Taming vaes. arXiv preprint arXiv:1810.00597.</p>
+<p>(Tomczak &amp; Welling, 2018) Tomczak, J., &amp; Welling, M. (2018). VAE with a VampPrior. Artificial Intelligence and Statistics (pp. 1214-1223). PMLR.</p>
+
+</div>
+</div>
+</div>
+    </div>
+  </div>
+</body>
+
+ 
+
+
+</html>
