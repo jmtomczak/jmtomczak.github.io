@@ -249,7 +249,7 @@ $$<p>Eventually, we implicitly force a close connection between the variational 
 <div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div><div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>Let us delve into an implementation of a top-down VAE. We stick to the two-level VAE to match the description provided above. We will use precisely the same steps as in the procedures used above. For clarity, we will use a single class to the code as similar to the mathematical expressions above as possible. We use the reparameterization trick for sampling. There is one difference between the math and the code, namely, in the code we use $\log \Delta \sigma$ instead of $\Delta sigma$. Then, we use $\log \sigma + \log \Delta \sigma$ instead of $ \sigma \cdot \Delta \sigma$ because $e^{\log a + \log b} = e^{\log a} \cdot e^{\log b} = a \cdot b$.</p>
+<p>Let us delve into an implementation of a top-down VAE. We stick to the two-level VAE to match the description provided above. We will use precisely the same steps as in the procedures used above. For clarity, we will use a single class to the code as similar to the mathematical expressions above as possible. We use the reparameterization trick for sampling. There is one difference between the math and the code, namely, in the code we use $\log \Delta \sigma$ instead of $\Delta \sigma$. Then, we use $\log \sigma + \log \Delta \sigma$ instead of $ \sigma \cdot \Delta \sigma$ because $e^{\log a + \log b} = e^{\log a} \cdot e^{\log b} = a \cdot b$.</p>
 <p>The full code could be found <a href="https://github.com/jmtomczak/intro_dgm" target="_blank">[here]</a>.</p>
 
 </div>
