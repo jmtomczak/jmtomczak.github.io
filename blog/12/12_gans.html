@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" />
+
+<title>12_gans</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+
+
+<!-- MUST INCLUDE TO PROPERLY ADD HEADER! -->
+<link rel="stylesheet" type="text/css" media="screen" href="../../css/main.css" />
+<link rel="stylesheet" type="text/css" media="screen" href="../blog.css" />
+
+<!-- Loading mathjax macro -->
+<!-- Load mathjax -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_HTML"></script>
+    <!-- MathJax configuration -->
+    <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+        tex2jax: {
+            inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+            displayMath: [ ['$$','$$'], ["\\[","\\]"] ],
+            processEscapes: true,
+            processEnvironments: true
+        },
+        // Center justify equations in code and markdown cells. Elsewhere
+        // we use CSS to left justify single line equations in code cells.
+        displayAlign: 'center',
+        "HTML-CSS": {
+            styles: {'.MathJax_Display': {"margin": 0}},
+            linebreaks: { automatic: true }
+        }
+    });
+    </script>
+    <!-- End of mathjax configuration --></head>
+<body>
+  <div tabindex="-1" id="notebook" class="border-box-sizing">
+    <div class="container" id="notebook-container">
+
+<div id="header">
+  <ul>
+    <li><a href="../../index.html"><span>Home</span></a></li>
+    <li><a href="../../presentations.html"><span>Presentations</span></a></li>
+    <li><a href="../../deebmed.html"><span>DeeBMED</span></a></li>
+	<li><a href="../../people.html"><span>People</span></a></li>
+	<li><a href="../../blog.html"><span>BLOG</span></a></li>
+  </ul>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Introduction">Introduction<a class="anchor-link" href="#Introduction">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Once we discussed latent variable models, we claimed that they naturally define a generative process by first sampling latents $\mathbf{z} \sim p(\mathbf{z})$ and then generating observables $\mathbf{x} \sim p_{\theta}(\mathbf{x} | \mathbf{z})$. That is nice! However, the problem appears when we start thinking about training. To be more precise, the training objective is an issue. Why? Well, the probability theory tells us to <em>get rid of</em> all unobserved random variables by marginalizing them out. In the case of latent variable models, this is equivalent to calculating the (marginal) log-likelihood function in the following form:
+\begin{align}
+\log p_{\theta}(\mathbf{x}) = \log \int p_{\theta}(\mathbf{x} | \mathbf{z})\ p(\mathbf{z})\ \mathrm{d}\mathbf{z} .
+\end{align}</p>
+<p>As we mentioned already in the post about VAEs (see <a href="https://jmtomczak.github.io/blog/4/4_VAE.html" target="_blank">here</a>), the problematic part is calculating the integral because it is not analytically tractable unless all distributions are Gaussian and the dependency between $\mathbf{x}$ and $\mathbf{z}$ is linear. However, let us forget for a moment about all these issues and take a look at what we can do here. First, we can approximate the integral using Monte Carlo samples from the prior $p(\mathbf{z})$ that yields:
+\begin{align}
+\log p_{\theta}(\mathbf{x}) &amp;= \log \int p_{\theta}(\mathbf{x} | \mathbf{z})\ p(\mathbf{z})\ \mathrm{d}\mathbf{z} \\
+&amp;\approx \log \frac{1}{S} \sum_{s=1}^{S} p_{\theta}(\mathbf{x}|\mathbf{z}_{s}) \\
+&amp;= \log \sum_{s=1}^{S} \exp\left( \log p_{\theta}(\mathbf{x}|\mathbf{z}_{s}) \right) - \log S \\
+&amp;= \mathrm{LogSumExp}_{s} \left\{ p_{\theta}(\mathbf{x}|\mathbf{z}_{s}) \right\} - \log S ,
+\end{align}
+where $\mathrm{LogSumExp}_{s} \left\{ f(s) \right\} = \log \sum_{s=1}^{S} \exp\left( f(s) \right)$ is the log-sum-exp function.</p>
+<p>Assuming for a second that this is a good (i.e., a tight) approximation, we turn the problem of calculating the integral into a problem of sampling from the prior. For simplicity, we can assume a prior that is relatively easy to be sampled from, e.g., the standard Gaussian, $p(\mathbf{z}) = \mathcal{N}(\mathbf{z}|0, \mathbf{I})$. In other words, we need to model $p_{\theta}(\mathbf{x}|\mathbf{z})$ only, i.e., pick a parameterization for it. Guess what, we will use a neural network again! If we model images, then we can use the categorical distribution for the conditional likelihood and then a neural network parameterizes the probabilities. Or, if we use a Gaussian distribution like in the case of energy-based models or diffusion-based deep generative models, then $p_{\theta}(\mathbf{x}|\mathbf{z})$ could be Gaussian as well and the neural network outputs the variance and/or the mean. Since the log-sum-exp function is differentiable (and the application of the log-sum-exp trick makes it even numerically stable), there is no problem learning this model end-to-end! This approach is a precursor of many deep generative models and was dubbed <strong>density networks</strong> (MacKay &amp; Gibbs, 1999).</p>
+<p><img src="density_net.png" width="600"></p>
+<p><strong>Figure 1.</strong> A schematic representation of a density net.</p>
+<p>Density networks are important and, unfortunately, underappreciated deep generative models. It is worth knowing them at least for three reasons. First, understanding how they work helps a lot to comprehend other latent variables models and how to improve them. Second, they serve as a great starting point for understanding the difference between <em>prescribed models</em> and <em>implicit models</em>. Third, they allow us to formulate a non-linear latent variable model and train it using backpropagation (or a gradient descent, in general).</p>
+<p>Alright, so now you may have some questions because we made a few assumptions on the way that might have been pretty confusing. The main assumptions made here are the following:</p>
+<ul>
+<li>We need to specify the prior distribution $p(\mathbf{z})$, e.g., the standard Gaussian.</li>
+<li>We need to specify the form of the conditional likelihood $p(\mathbf{x}|\mathbf{z})$. Typically, people use the Gaussian distribution or a mixture of Gaussians.
+Hence, density nets are the <em>prescribed</em> models because we need to analytically formulate all distributions in advance. </li>
+</ul>
+<p>As a result, we get the following:</p>
+<ul>
+<li>the objective function is the (approximated) log-likelihood function;</li>
+<li>we can optimize the objective using gradient-based optimization methods and the autograd tools;</li>
+<li>we can parameterize the conditional likelihood using deep neural networks.</li>
+</ul>
+<p>However, we pay a great price for all the goodies coming from the formulation of the density networks:</p>
+<ul>
+<li>there is no analytical solution (except the case equivalent to the probabilistic PCA);</li>
+<li>we get an approximation of the log-likelihood function;</li>
+<li>we need a lot of samples from the prior to get a reliable approximation of the log-likelihood function;</li>
+<li>it suffers from the curse of dimensionality.</li>
+</ul>
+<p>As you can see, the issue with dimensionality is especially limiting. What can we do with a model if it cannot be efficient for higher-dimensional problems? All interesting applications like image or audio analysis/synthesis are gone! So what can we do then? One possible direction is to stick to the prescribed models and apply variational inference (see <a href="https://jmtomczak.github.io/blog/4/4_VAE.html" target="_blank">here</a>). However, the other direction is to abandon the likelihood-based approach. I know, it sounds ridiculous but it is possible and, <em>unfortunately</em>, works pretty well in practice.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Implicit-modeling-with-Generative-Adversarial-Networks-(GANs)">Implicit modeling with Generative Adversarial Networks (GANs)<a class="anchor-link" href="#Implicit-modeling-with-Generative-Adversarial-Networks-(GANs)">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Getting rid of Kullback-Leibler</strong> Let us think again what density networks tell us. First of all, they define a nice generative process: First sample latents and then generate observables. Clear! Then, for training, they use the (marginal) log-likelihood function. In other words, the log-likelihood function assesses the difference between a training datum and a generated object. To be even more precise, we first pick the specific probability distribution for the conditional likelihood $p_{\theta}(\mathbf{x}|\mathbf{z})$ that defines how to calculate the difference between the training point and the generated observables.</p>
+<p>One may ask here whether there is a different fashion of calculating the <em>difference</em> between real data and generated objects. If we recall our considerations about hierarchical VAEs (see <a href="https://jmtomczak.github.io/blog/9/9_hierarchical_lvm_p1.html" target="_blank">here</a>), learning of the likelihood-based models is equivalent to optimizing the Kullback-Leibler (KL) divergence between the empirical distribution and the model, $KL\left[ p_{data}(\mathbf{x}) || p_{\theta}(\mathbf{x}) \right]$. The KL-based approach requires a well-behaved distribution because of the logarithms. Moreover, we can think of it as a <em>local</em> way of comparing the empirical distribution (i.e., given data) and the generated data (i.e., data generated by our prescribed model). By <em>local</em> we mean considering one point at a time and then summing all individual errors instead of comparing samples that we can refer to as <em>global</em> comparison. However, we do not need to stick to the KL divergence! Instead, we can use other metrics that look at a set of points (i.e., distributions represented by a set of points) like integral probability metrics (Sriperumbudur et al., 2009) (e.g., the Minimum Mean Discrepancy, MMD (Gretton et al., 2006)) or use other divergences (Van Erven &amp; Harremosm, 2014).</p>
+<p>Still, all of the mentioned metrics rely on defining explicitly how we measure the error. The question is whether we can parameterize our loss function and learn it alongside our model. Since we talk all the time about neural networks, can we go even further and utilize a neural network to calculate differences?</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Getting rid of prescribed distributions</strong> Alright, we agreed on the fact that the KL divergence is only one of many possible loss functions. Moreover, we asked ourselves whether we can use a learnable loss function. However, there is also one question floating in the air, namely, do we need to use the prescribed models in the first place? The reasoning is the following. Since we know that density networks take noise and turn them into distribution in the observable space, do we really need to output a full distribution? What if we return a single point? In other words, what if we define the conditional likelihood as Dirac's delta:
+\begin{align}
+p_{\theta}(\mathbf{x}|\mathbf{z}) = \delta\left( \mathbf{x} - NN_{\theta}(\mathbf{z}) \right) .
+\end{align}</p>
+<p>This is equivalnet to saying that instead of a Gaussian (i.e., a mean and a variance), $NN_{\theta}(\mathbf{z})$ outpts the mean only. Interestingly, if we consider the marginal distribution over $\mathbf{x}$'s, we get nicely behaved distribution. To see that, let us first calculate the marginal distribution:
+\begin{align}
+p_{\theta}(\mathbf{x}) = \int \delta\left( \mathbf{x} - NN_{\theta}(\mathbf{z}) \right)\ p(\mathbf{z})\ \mathrm{d}\mathbf{z}.
+\end{align}</p>
+<p>Then, let us understand what is going on! The marginal distribution is an infinite mixture of delta peaks. In other words, we take a single $\mathbf{z}$ and plot a peak (or a point in 2D, it is easier to imagine) in the observable space. We proceed to infinity and once we do that, the observable space will be covered by more and more points and some regions will be <em>denser</em> than the others. This kind of modeling a distribution is also known as <em>implicit modeling</em>.</p>
+<p>So where is the problem then? Well, the problem in the prescribed modeling setting is that the term $\log \delta\left( \mathbf{x} - NN_{\theta}(\mathbf{z}) \right)$ is ill-defined and cannot be used in many probability measures, including the KL-term, because we cannot calculate the loss function. Therefore, we can ask ourselves whether we can define our own loss function, perhaps? And, even more, parameterize it with neural networks! You must admit it sounds appealing! So how to accomplish that?</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Adversarial loss</strong> Let us start with the following story. There is a con artist (a fraud) and a friend of the fraud (an expert) who knows a little about art. Moreover, there is a real artist that has passed away (e.g., Pablo Picasso). The fraud tries to mimic the style of Pablo Picasso as well as possible. The friend expert browses for paintings of Picasso and compares them to the paintings provided by the fraud. Hence, the fraud tries to fool his friend, while the expert tries to distinguish real paintings of Picasso from fakes. Over time, the fraud becomes better and better and the expert also learns how to decide whether a given painting is a fake. Eventually, and unfortunately to the world of art, work of the fraud may become indistinguishable from Picasso and the expert may be completely uncertain about the paintings and whether they are fakes.</p>
+<p>Now, let us formalize this wicked game. We we call the expert a <em>discriminator</em> that takes and object $\mathbf{x}$ and returns a probability whether it is <em>real</em> (i.e., coming from the empirical distribution), $D_{\alpha}: \mathcal{X} \rightarrow [0,1]$. We refer to the fraud as a <em>generator</em> that takes noise and turns it into an object $\mathbf{x}$, $G_{\beta}: \mathcal{Z} \rightarrow \mathcal{X}$. All $\mathbf{x}$'s coming from the empirical distribution $p_{data}(\mathbf{x})$ are called <em>real</em> and all $\mathbf{x}$'s generated by $G_{\beta}(\mathbf{z})$ are dubbed <em>fake</em>. Then, we construct the objective function as follows:</p>
+<ul>
+<li>We have two sources of data: $\mathbf{x} \sim p_{\theta}(\mathbf{x}) = \int G_{\beta}(\mathbf{z})\ p(\mathbf{z})\ \mathrm{d} \mathbf{z}$ and $\mathbf{x} \sim p_{data}(\mathbf{x})$.</li>
+<li>The discriminator solves the classification task by assigning $0$ to all fake datapoints and $1$ to all real datapoints.</li>
+<li>Since the discriminator can be seen as a classifier, we can use the binary cross-entropy loss function in the following form:
+\begin{align}
+\ell(\alpha, \beta) = \mathbb{E}_{\mathbf{x} \sim p_{real}} \left[ \log D_{\alpha}(\mathbf{x}) \right] + \mathbb{E}_{\mathbf{z} \sim p(\mathbf{z})} \left[ \log \left(1-D_{\alpha}\left(G_{\beta}(\mathbf{z})\right)\right) \right] .
+\end{align}
+The left part corresponds to the real data source, and the right part contains the fake data source.</li>
+<li>We try to maximize $\ell(\alpha, \beta)$ with respect to $\alpha$ (i.e., the discriminator). In plain words, we want the discriminator to be as good as possible.</li>
+<li>The generator tries to fool the discriminator, thus, it tries to minimize $\ell(\alpha, \beta)$ with respect to $\beta$ (i.e., the generator).</li>
+</ul>
+<p>Eventually, we face to following learning objective:
+\begin{align}
+\min_{\beta} \max_{\alpha} \mathbb{E}_{\mathbf{x} \sim p_{real}} \left[ \log D_{\alpha}(\mathbf{x}) \right] + \mathbb{E}_{\mathbf{z} \sim p(\mathbf{z})} \left[ \log \left(1-D_{\alpha}\left(G_{\beta}(\mathbf{z})\right)\right) \right] .
+\end{align}
+We refer to $\ell(\alpha, \beta)$ as the <em>adversarial loss</em> since there are two actors trying to achieve two opposite goals.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>GANs</strong> Let us put everything together:</p>
+<ul>
+<li>We have a generator that turns noise into fake data.</li>
+<li>We have a discriminator that classifies given input as either fake or real.</li>
+<li>We parameterize the generator and the discriminator using deep neural networks.</li>
+<li>We learn the neural networks using the adversarial loss (i.e., we optimize the the min-max problem).</li>
+</ul>
+<p>The resulting class of models is called Generative Adversarial Networks (GANs) (Goodfellow et al., 2014). In Figure 2, we present the idea of GANs and how they are connected to density networks. Notice that the generator part constitutes an implicit distribution, i.e., a distribution from an unknown family of distributions, and its analytical form is unknown as well, however, we can sample from it.</p>
+<p><img src="gans.png" width="700"></p>
+<p><strong>Figure 2.</strong> A schematic representation of GANs. Please note the part of the generator and its resemblance to density networks.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Implementing-GANs">Implementing GANs<a class="anchor-link" href="#Implementing-GANs">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Believe me or not but we have all components to implement GANs. Let us look into all of them step-by-step. In fact, the easiest way to understand them is to implement them.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Generator</strong> The first part is generator, $G_{\beta}(\mathbf{z})$, which is simply a deep neural network. The code for a class of the generator is presented below. Notice that we distinguish between a function for generating, namely, transforming $\mathbf{z}$ to $\mathbf{x}$, and <em>sampling</em> that first samples $\mathbf{z} \sim \mathcal{N}(0, \mathbf{I})$ and then calls <em>generate</em>.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt"></div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">Generator</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">generator_net</span><span class="p">,</span> <span class="n">z_size</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Generator</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        
+        <span class="c1"># We need to init the generator neural net.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">generator_net</span> <span class="o">=</span> <span class="n">generator_net</span>
+        <span class="c1"># We also need to know the size of the latents.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">z_size</span> <span class="o">=</span> <span class="n">z_size</span>
+
+    <span class="k">def</span> <span class="nf">generate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
+        <span class="c1"># Generating for given z is equivalent to applying the neural net.</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">generator_net</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">16</span><span class="p">):</span>
+        <span class="c1"># For sampling, we need to sample first latents.</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">z_size</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">z</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">z</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Discriminator</strong> The second component is the discriminator. Here, the code is even simpler because it consists of a single neural network. The code for a class of the discriminator is provided below.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt"></div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">Discriminator</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">discriminator_net</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Discriminator</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="c1"># We need to init the discriminator neural net.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">discriminator_net</span> <span class="o">=</span> <span class="n">discriminator_net</span>
+
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="c1"># The forward pass is just about applying the neural net.</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">discriminator_net</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>GAN</strong> Now, we are ready to combine these two components. In our implementation, a GAN outputs the adversarial loss either for the generator or the discriminator. Maybe the code below is overkill, however, it is better to write a few more lines and properly understand what is going on than applying some unclear tricks.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt"></div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">GAN</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">generator</span><span class="p">,</span> <span class="n">discriminator</span><span class="p">,</span> <span class="n">EPS</span><span class="o">=</span><span class="mf">1.e-5</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">GAN</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;GAN by JT.&#39;</span><span class="p">)</span>
+        
+        <span class="c1"># To put everything together, we need the generator and </span>
+        <span class="c1"># the discriminator. NOTE: Both are intanced of classes!</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">generator</span> <span class="o">=</span> <span class="n">generator</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">discriminator</span> <span class="o">=</span> <span class="n">discriminator</span>
+        
+        <span class="c1"># For numerical issue, we introduce a small epsilon.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">EPS</span> <span class="o">=</span> <span class="n">EPS</span>
+
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x_real</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="s1">&#39;avg&#39;</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;discriminator&#39;</span><span class="p">):</span>
+        <span class="c1"># The forward pass calculates the adversarial loss.</span>
+        <span class="c1"># More specifically, either its part for the generator or</span>
+        <span class="c1">#  the part for the discriminator.</span>
+        <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;generator&#39;</span><span class="p">:</span>
+            <span class="c1"># For the generator, we first sample FAKE data.</span>
+            <span class="n">x_fake_gen</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">generator</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">x_real</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+            <span class="c1"># Then, we calculate outputs of the discriminator for the FAKE data.</span>
+            <span class="c1"># NOTE: We clamp here for the numerical stability later on.</span>
+            <span class="n">d_fake</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">discriminator</span><span class="p">(</span><span class="n">x_fake_gen</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">EPS</span><span class="p">,</span> <span class="mf">1.</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">EPS</span><span class="p">)</span>
+            
+            <span class="c1"># The loss for the generator is log(1 - D(G(z))).</span>
+            <span class="n">loss</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">1.</span> <span class="o">-</span> <span class="n">d_fake</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;discriminator&#39;</span><span class="p">:</span>
+            <span class="c1"># For the discriminator, we first sample FAKE data.</span>
+            <span class="n">x_fake_gen</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">generator</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">x_real</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+            <span class="c1"># Then, we calculate outputs of the discriminator for the FAKE data.</span>
+            <span class="c1"># NOTE: We clamp for the numerical stability later on.</span>
+            <span class="n">d_fake</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">discriminator</span><span class="p">(</span><span class="n">x_fake_gen</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">EPS</span><span class="p">,</span> <span class="mf">1.</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">EPS</span><span class="p">)</span>
+            
+            <span class="c1"># Moreover, we calculate outputs of the discriminator for the REAL data.</span>
+            <span class="c1"># NOTE: We clamp for... the numerical stability (again).</span>
+            <span class="n">d_real</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">discriminator</span><span class="p">(</span><span class="n">x_real</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">EPS</span><span class="p">,</span> <span class="mf">1.</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">EPS</span><span class="p">)</span>
+
+            <span class="c1"># The final loss for the discriminator is log(1 - D(G(z))) + log D(x).</span>
+            <span class="c1"># NOTE: We take the minus sign because we MAXIMIZE the adversarial loss wrt </span>
+            <span class="c1"># discriminator, so we MINIMIZE the negative adversarial loss wrt discriminator.</span>
+            <span class="n">loss</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">d_real</span><span class="p">)</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">1.</span> <span class="o">-</span> <span class="n">d_fake</span><span class="p">))</span>
+        
+        <span class="k">if</span> <span class="n">reduction</span> <span class="o">==</span> <span class="s1">&#39;sum&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">loss</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">loss</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">generator</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">)</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt"></div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="c1"># First, we initialize the generator and the discriminator</span>
+<span class="c1"># -generator</span>
+<span class="n">generator_net</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">M</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">(),</span>
+                              <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">D</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">Tanh</span><span class="p">())</span>
+
+<span class="n">generator</span> <span class="o">=</span> <span class="n">Generator</span><span class="p">(</span><span class="n">generator_net</span><span class="p">,</span> <span class="n">z_size</span><span class="o">=</span><span class="n">L</span><span class="p">)</span>
+
+<span class="c1"># -discriminator</span>
+<span class="n">discriminator_net</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">D</span><span class="p">,</span> <span class="n">M</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">(),</span>
+                                  <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sigmoid</span><span class="p">())</span>
+
+<span class="n">discriminator</span> <span class="o">=</span> <span class="n">Discriminator</span><span class="p">(</span><span class="n">discriminator_net</span><span class="p">)</span>
+
+<span class="c1"># Eventually, we initialize the full model</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">GAN</span><span class="p">(</span><span class="n">generator</span><span class="o">=</span><span class="n">generator</span><span class="p">,</span> <span class="n">discriminator</span><span class="o">=</span><span class="n">discriminator</span><span class="p">)</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Training</strong> One might think that the training procedure for GANs is more complicated than for any of the likelihood-based models. However, it is not the case. The only difference is that we need two optimizers instead of one. An example of a code with a training loop is presented below.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt"></div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="c1"># We use two optimizers:</span>
+<span class="c1"># optimizer_dis - an optimizer that takes the parameters of the discriminator</span>
+<span class="c1"># optimizer_gen - an optimizer that takes the parameters of the generator</span>
+<span class="k">for</span> <span class="n">indx_batch</span><span class="p">,</span> <span class="n">batch</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">training_loader</span><span class="p">):</span>
+
+    <span class="c1"># -Discriminator</span>
+    <span class="c1"># Notice that we call our model with the &#39;discriminator&#39; mode.</span>
+    <span class="n">loss_dis</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;discriminator&#39;</span><span class="p">)</span>
+
+    <span class="n">optimizer_dis</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
+    <span class="n">optimizer_gen</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
+    <span class="n">loss_dis</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span><span class="n">retain_graph</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">optimizer_dis</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+
+    <span class="c1"># -Generator</span>
+    <span class="c1"># Notice that we call our model with the &#39;generator&#39; mode.</span>
+    <span class="n">loss_gen</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;generator&#39;</span><span class="p">)</span>
+
+    <span class="n">optimizer_dis</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
+    <span class="n">optimizer_gen</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
+    <span class="n">loss_gen</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span><span class="n">retain_graph</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">optimizer_gen</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h4 id="Results">Results<a class="anchor-link" href="#Results">&#182;</a></h4>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>In the experiments, we normalized images and scaled them to $[-1, 1]$ as we did for DDGMs. The full code (with auxiliary functions) that you can play with is available here: <a href="https://github.com/jmtomczak/intro_dgm" target="_blank">[link]</a>. After running it, you can expect similar results to those in Figure 3.</p>
+<p><strong>A</strong>
+<img src="gan_16_real_images.png" width="200">
+<strong>B</strong>
+<img src="gan_16_generated_imagesFINAL.png" width="200">
+<strong>C</strong>
+<img src="gan_16_dis_nll_val_curve.png" width="200">
+<strong>D</strong>
+<img src="gan_16_gen_nll_val_curve.png" width="200"></p>
+<p><strong>Figure 3.</strong> Examples of results after running the code for GANs. <b>A</b>: Real images. <b>B</b>: Fake images. <b>C</b>: The validation curve for the discriminator. <b>D</b>: The validation curve for the generator.</p>
+<p>In the previous blog posts, we have not commented on the results. However, we make an exception here. Please note, my curious reader, that now we do not have a nicely converging objective. On the contrary, the adversarial loss or its generating part is jumping all over the place. That is a known fact following from the min-max optimization problem. Moreover, the loss is learnable now so it is troublesome to say where the optimal solution is since we update the loss function as well.</p>
+<p>Another important piece of information is that training GANs is indeed a pain. First, it is hard to decipher and properly understand the values of the adversarial loss. Second, learning is rather slow and requires many iterations (by many I mean hundreds if not thousands). If you look into generations in the first few epochs, you may be discouraged because a model may seem to overfit. That is the problem, we must be really patient to see whether we are on the good track. Moreover, you may also need to pay special attention to hyperparameters, e.g., learning rates. It requires a bit of experience or simply time to play around with learning rate values in your problem.</p>
+<p>Once you get through learning GANs, the reward is truly amazing. In the presented problem, with extremely simple neural nets, we are able to synthesize digits of high quality. That's the biggest advantage of GANs!</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="There-is-many,-many-more...">There is many, many more...<a class="anchor-link" href="#There-is-many,-many-more...">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Since the publication of the seminal paper on GANs (Goodfellow et al., 2014) (however, the idea of the adversarial problem could be traced back to (Schmidhuber, 1990)), there was a flood of GAN-based ideas and papers. I would not even dare to mention a small fraction of them. The field of implicit modeling with GANs is growing constantly. I will try to point to a few important papers:</p>
+<ul>
+<li><em>Conditional GANs</em>: An important extension of GANs is allowing them to generate data conditionally (Mirza &amp; Osindero, 2014).</li>
+<li><em>GANs with encoders</em>: An interesting question is whether we can extend conditional GANs to a framework with encoders. It turns out that it is possible, see BiGAN (Donahue et al., 2016) and ALI (Dumoulin et al., 2016) for details.</li>
+<li><em>StyleGAN</em> and <em>CycleGAN</em>: The flexibility of GANs could be utilized in formulating specialized images synthesizers. For instance, StyleGAN is formulated in such a way to transfer style between images (Karras et al., 2019) while CycleGAN tries to "translate" one image into another, e.g., a horse into a zebra (Zhu et al., 2017).</li>
+<li><em>Wasserstein GANs</em>: In (Arjovsky et al., 2017) it was claimed that the adversarial loss could be formulated differently using the Wasserstein distance (a.k.a. the earth-mover distance), that is:
+\begin{align}
+\ell_{W}(\alpha, \beta) = \mathbb{E}_{\mathbf{x} \sim p_{real}} \left[ D_{\alpha}(\mathbf{x}) \right] - \mathbb{E}_{\mathbf{z} \sim p(\mathbf{z})} \left[ D_{\alpha}\left(G_{\beta}(\mathbf{z})\right) \right] .
+\end{align}
+where $D_{\alpha}(\cdot)$ must be a 1-Lipschitz function. The simples way to achieve that is by clipping the weight of the discriminator to some small value $c$. It stabilizes training, however, it is still hard to comprehend the learning process.</li>
+<li><em>f-GANs</em>: The Wasserstein GAN indicated taht we can look elsewhere for alternative formulations of the adversarial loss. In (Nowozin et al., 2016), it is advocated to use f-divergences for that.</li>
+<li><em>Generative Moment Matching Networks</em> (Dziugaite et al., 2015; Li et al., 2015): As mentioned earlier, we could use other metrics instead of the likelihood function. We can fix the discriminator and define it as the Maximum Mean Discrepancy with a given kernel function. The resulting problem is simpler because we do not train the discriminator, thus, we get rid of the cumbersome min-max optimization. However, the final quality of synthesized images is typically poorer.</li>
+<li><em>Density difference vs. Density ratio</em>: An interesting perspective is presented in (Mohamed &amp; Lakshminarayanan, 2016; Huszar, 2017) where we can see various GANs either as a difference of densities or a ratio of densities. I refer to the original papers for further details.</li>
+<li><em>Hierarchical implicit models</em>: The idea of defining implicit models could be extended to hierarchical models (Tran et al., 2017).</li>
+<li><em>GANs and EBMs</em>: If you recall the EBMs, you may notice that there is a clear connection between the adversarial loss and the logarithm of the Boltzmann distribution. In (Kim &amp; Bengio, 2016; Zhu et al., 2017) it was noticed that introducing a variational distribution over observables, $q(\mathbf{x})$, leads to the following objective:
+\begin{align}
+\mathcal{J}(\mathbf{x}) = \mathbb{E}_{\mathbf{x} \sim p_{data}(\mathbf{x})}\left[ E(\mathbf{x}) \right] - \mathbb{E}_{\mathbf{x} \sim q(\mathbf{x})}\left[ E(\mathbf{x}) \right] + \mathbb{H}\left[ q(\mathbf{x}) \right] ,
+\end{align}
+where $E(\cdot)$ is the energy function and $\mathbb{H}\left[\cdot \right]$ is the entropy. The problem again boils down to the min-max optimization problem, namely, minimizing with respect to the energy function and maximizing with respect to the variational distribution. The second difference between the adversarial loss and the variational lower bound here is the entropy term that is typically intractable.</li>
+<li><em>What GAN to use?</em>: Interestingly, it seems that training GANs greatly depends on the initialization and the neural nets rather than the adversarial loss or other tricks. You can read more about it in (Lucic et al., 2018).</li>
+<li><em>Training instabilities</em>: The main problem of GANs is unstable learning and a phenomenon called <em>mode collapse</em>, namely, a GAN samples beautiful images but only from some regions of the observable space. This problem has been studied for a long time by many (e.g., (Salimans et al., 2016; Odena et al., 2017; Mescheder et al., 2018)), however, it still remains an open question.</li>
+</ul>
+<p>Each of these ideas constitutes a separate research direction followed by thousands of researchers. If you are interested in pursuing any of these, I suggest picking one the paper mentioned here and start digging!</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="References">References<a class="anchor-link" href="#References">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>(Arjovsky et al., 2017) Arjovsky, M., Chintala, S., &amp; Bottou, L. (2017, July). Wasserstein generative adversarial networks. In International conference on machine learning (pp. 214-223). PMLR.</p>
+<p>(Donahue et al., 2016) Donahue, J., Krähenbühl, P., &amp; Darrell, T. (2016). Adversarial feature learning. arXiv preprint arXiv:1605.09782.</p>
+<p>(Dumoulin et al., 2016) Dumoulin, V., Belghazi, I., Poole, B., Mastropietro, O., Lamb, A., Arjovsky, M., &amp; Courville, A. (2016). Adversarially learned inference. arXiv preprint arXiv:1606.00704.</p>
+<p>(Dziugaite et al., 2015) Dziugaite, G. K., Roy, D. M., &amp; Ghahramani, Z. (2015). Training generative neural networks via maximum mean discrepancy optimization. arXiv preprint arXiv:1505.03906.</p>
+<p>(Van Erven &amp; Harremos, 2014) Van Erven, T., &amp; Harremos, P. (2014). Rényi divergence and Kullback-Leibler divergence. IEEE Transactions on Information Theory, 60(7), 3797-3820.</p>
+<p>(Gretton et al., 2006) Gretton, A., Borgwardt, K., Rasch, M., Schölkopf, B., &amp; Smola, A. (2006). A kernel method for the two-sample-problem. Advances in neural information processing systems, 19, 513-520.</p>
+<p>(Goodfellow et al., 2014) Goodfellow, I., Pouget-Abadie, J., Mirza, M., Xu, B., Warde-Farley, D., Ozair, S., Courville, A., &amp; Bengio, Y. (2014). Generative adversarial nets. Advances in neural information processing systems, 27.</p>
+<p>(Huszar, 2017) Huszar, F. (2017). Variational inference using implicit distributions. arXiv preprint arXiv:1702.08235.</p>
+<p>(Karras et al., 2019) Karras, T., Laine, S., &amp; Aila, T. (2019). A style-based generator architecture for generative adversarial networks. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (pp. 4401-4410).</p>
+<p>(Kim &amp; Bengio, 2016) Kim, T., &amp; Bengio, Y. (2016). Deep directed generative models with energy-based probability estimation. arXiv preprint arXiv:1606.03439.</p>
+<p>(Li et al., 2015) Li, Y., Swersky, K., &amp; Zemel, R. (2015, June). Generative moment matching networks. In International Conference on Machine Learning (pp. 1718-1727). PMLR.</p>
+<p>(Lucic et al., 2018) Lucic, M., Kurach, K., Michalski, M., Gelly, S., &amp; Bousquet, O. (2018). Are GANs Created Equal? A Large-Scale Study. Advances in Neural Information Processing Systems, 31.</p>
+<p>(MacKay &amp; Gibbs, 1999) MacKay, D. J., &amp; Gibbs, M. N. (1999). Density networks. Statistics and neural networks: advances at the interface, 129-145.</p>
+<p>(Mescheder et al., 2018) Mescheder, L., Geiger, A., &amp; Nowozin, S. (2018, July). Which training methods for GANs do actually converge?. In International conference on machine learning (pp. 3481-3490). PMLR.</p>
+<p>(Mirza &amp; Osindero, 2014) Mirza, M., &amp; Osindero, S. (2014). Conditional generative adversarial nets. arXiv preprint arXiv:1411.1784.</p>
+<p>(Mohamed &amp; Lakshminarayanan, 2016) Mohamed, S., &amp; Lakshminarayanan, B. (2016). Learning in implicit generative models. arXiv preprint arXiv:1610.03483.</p>
+<p>(Nowozin et al., 2016) Nowozin, S., Cseke, B., &amp; Tomioka, R. (2016, December). f-gan: Training generative neural samplers using variational divergence minimization. In Proceedings of the 30th International Conference on Neural Information Processing Systems (pp. 271-279).</p>
+<p>(Odena et al., 2017) Odena, A., Olah, C., &amp; Shlens, J. (2017, July). Conditional image synthesis with auxiliary classifier gans. In International conference on machine learning (pp. 2642-2651). PMLR.</p>
+<p>(Salimans et al., 2016) Salimans, T., Goodfellow, I., Zaremba, W., Cheung, V., Radford, A., &amp; Chen, X. (2016). Improved techniques for training gans. Advances in neural information processing systems, 29, 2234-2242.</p>
+<p>(Schmidhuber, 1990) Schmidhuber, J. (1990). Making the world differentiable: On using fully recurrent self-supervised neural networks for dynamic reinforcement learning and planning in non-stationary environments. Institut für Informatik, Technische Universität München. Technical Report FKI-126, 90.</p>
+<p>(Sriperumbudur et al., 2009) Sriperumbudur, B. K., Fukumizu, K., Gretton, A., Schölkopf, B., &amp; Lanckriet, G. R. (2009). On integral probability metrics, $\phi$-divergences and binary classification. arXiv preprint arXiv:0901.2698.</p>
+<p>(Tran et al., 2017) Tran, D., Ranganath, R., &amp; Blei, D. M. (2017, December). Hierarchical implicit models and likelihood-free variational inference. In Proceedings of the 31st International Conference on Neural Information Processing Systems (pp. 5529-5539).</p>
+<p>(Zhai et al., 2016) Zhai, S., Cheng, Y., Feris, R., &amp; Zhang, Z. (2016). Generative adversarial networks as variational training of energy based models. arXiv preprint arXiv:1611.01799.</p>
+<p>(Zhu et al., 2017) Zhu, J. Y., Park, T., Isola, P., &amp; Efros, A. A. (2017). Unpaired image-to-image translation using cycle-consistent adversarial networks. In Proceedings of the IEEE international conference on computer vision (pp. 2223-2232).</p>
+
+</div>
+</div>
+</div>
+    </div>
+  </div>
+</body>
+
+ 
+
+
+</html>
