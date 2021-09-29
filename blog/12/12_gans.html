@@ -462,6 +462,7 @@ where $D_{\alpha}(\cdot)$ must be a 1-Lipschitz function. The simples way to ach
 where $E(\cdot)$ is the energy function and $\mathbb{H}\left[\cdot \right]$ is the entropy. The problem again boils down to the min-max optimization problem, namely, minimizing with respect to the energy function and maximizing with respect to the variational distribution. The second difference between the adversarial loss and the variational lower bound here is the entropy term that is typically intractable.</li>
 <li><em>What GAN to use?</em>: Interestingly, it seems that training GANs greatly depends on the initialization and the neural nets rather than the adversarial loss or other tricks. You can read more about it in (Lucic et al., 2018).</li>
 <li><em>Training instabilities</em>: The main problem of GANs is unstable learning and a phenomenon called <em>mode collapse</em>, namely, a GAN samples beautiful images but only from some regions of the observable space. This problem has been studied for a long time by many (e.g., (Salimans et al., 2016; Odena et al., 2017; Mescheder et al., 2018)), however, it still remains an open question.</li>
+<li><em>Prescribed GANs</em>: Interestingly, it is possible to still calculate the likelihood for a GAN! See (Dieng et al., 2019) for more details.</li>
 </ul>
 <p>Each of these ideas constitutes a separate research direction followed by thousands of researchers. If you are interested in pursuing any of these, I suggest picking one the paper mentioned here and start digging!</p>
 
@@ -479,6 +480,7 @@ where $E(\cdot)$ is the energy function and $\mathbb{H}\left[\cdot \right]$ is t
 </div><div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
 <p>(Arjovsky et al., 2017) Arjovsky, M., Chintala, S., &amp; Bottou, L. (2017, July). Wasserstein generative adversarial networks. In International conference on machine learning (pp. 214-223). PMLR.</p>
+<p>(Dieng et al., 2019) Dieng, A. B., Ruiz, F. J., Blei, D. M., & Titsias, M. K. (2019). Prescribed generative adversarial networks. arXiv preprint arXiv:1910.04302.</p>
 <p>(Donahue et al., 2016) Donahue, J., Krähenbühl, P., &amp; Darrell, T. (2016). Adversarial feature learning. arXiv preprint arXiv:1605.09782.</p>
 <p>(Dumoulin et al., 2016) Dumoulin, V., Belghazi, I., Poole, B., Mastropietro, O., Lamb, A., Arjovsky, M., &amp; Courville, A. (2016). Adversarially learned inference. arXiv preprint arXiv:1606.00704.</p>
 <p>(Dziugaite et al., 2015) Dziugaite, G. K., Roy, D. M., &amp; Ghahramani, Z. (2015). Training generative neural networks via maximum mean discrepancy optimization. arXiv preprint arXiv:1505.03906.</p>
