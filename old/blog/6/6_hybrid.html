@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" />
+
+<title>6_hybrid</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+
+
+<!-- MUST INCLUDE TO PROPERLY ADD HEADER! -->
+<link rel="stylesheet" type="text/css" media="screen" href="../../css/main.css" />
+<link rel="stylesheet" type="text/css" media="screen" href="../blog.css" />
+
+<!-- Loading mathjax macro -->
+<!-- Load mathjax -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_HTML"></script>
+    <!-- MathJax configuration -->
+    <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+        tex2jax: {
+            inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+            displayMath: [ ['$$','$$'], ["\\[","\\]"] ],
+            processEscapes: true,
+            processEnvironments: true
+        },
+        // Center justify equations in code and markdown cells. Elsewhere
+        // we use CSS to left justify single line equations in code cells.
+        displayAlign: 'center',
+        "HTML-CSS": {
+            styles: {'.MathJax_Display': {"margin": 0}},
+            linebreaks: { automatic: true }
+        }
+    });
+    </script>
+    <!-- End of mathjax configuration --></head>
+<body>
+  <div tabindex="-1" id="notebook" class="border-box-sizing">
+    <div class="container" id="notebook-container">
+
+<div id="header">
+  <ul>
+    <li><a href="../../index.html"><span>Home</span></a></li>
+    <li><a href="../../presentations.html"><span>Presentations</span></a></li>
+    <li><a href="../../deebmed.html"><span>DeeBMED</span></a></li>
+	<li><a href="../../people.html"><span>People</span></a></li>
+	<li><a href="../../blog.html"><span>BLOG</span></a></li>
+  </ul>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Introduction">Introduction<a class="anchor-link" href="#Introduction">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>In the first post, I tried to convince you that learning the conditional distirbution $p(y|\mathbf{x})$ is not enough and, instead, we should focus on the joint distribution $p(\mathbf{x}, y)$ factorized as follows:</p>
+$$
+p(\mathbf{x}, y) = p(y|\mathbf{x}) p(\mathbf{x}) .
+$$<p>Why? Let me remind you of the reasoning: The conditional $p(y|\mathbf{x})$ does not allow us to say anything about $\mathbf{x}$ but, instead, it will give its best to provide a decision. As a result, I can provide an object that has never been observed so far, and $p(y|\mathbf{x})$ could still be pretty certain about its decision (i.e., assigning high probability to one class). On the other hand, once we have trained $p(\mathbf{x})$, we should be able to, at least in theory, access the probability of the given object. And, eventually, determine whether our decision is reliable or not.</p>
+<p>In the previous posts, we completely focused on answering the question on how to learn $p(\mathbf{x})$. Since we had in mind the necessity of using it for evaluating the probability, we discussed only the likelihood-based models, namely, the autoregressive models (ARMs), the flow-based models (flows), and the Variational Auto-Encoders (VAEs). Now, the naturally arising question is how to use a deep generative model with a classifier (or a regressor) together. Let us focus on a classification task for simplicity and think of possible approaches.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h4 id="Approach-1:-Let's-be-naive!">Approach 1: Let's be naive!<a class="anchor-link" href="#Approach-1:-Let's-be-naive!">&#182;</a></h4>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Let us start with some easy, naive almost approach. In the most straightforward way, we can train $p(y|\mathbf{x})$ and $p(\mathbf{x})$ separately. And that's it, we have a classifier and a marginal distribution over objects. This approach is schematically presented in Figure 1 where we use different colors (purple and blue) to highlight that we use two different neural networks to parameterize the two distributions.</p>
+<p><img src="hybrid_approach_1.png" width="250"></p>
+<p><strong>Figure 1.</strong> A naive approach to learning the joint distribution by considering both distributions separately.</p>
+<p>Let us write down the logarithm of the joint distribution:</p>
+$$
+\ln p(\mathbf{x}, y) = \ln p_{\alpha}(y|\mathbf{x}) + \ln p_{\beta}(\mathbf{x}), 
+$$<p>where $\alpha$ and $\beta$ denote parameterizations of both distributions (i.e., neural networks). Once we start training and calculate gradients with respect to $\alpha$ and $\beta$, we clearly see that we get:</p>
+$$
+\nabla_{\alpha} \ln p(\mathbf{x}, y) = \nabla_{\alpha} \ln p_{\alpha}(y|\mathbf{x}) + \underbrace{\nabla_{\alpha} \ln p_{\beta}(\mathbf{x})}_{= 0},
+$$<p>because $\ln p_{\beta}(\mathbf{x})$ is not dependent on $\alpha$,</p>
+$$
+\nabla_{\beta} \ln p(\mathbf{x}, y) = \underbrace{\nabla_{\beta} \ln p_{\alpha}(y|\mathbf{x})}_{=0} + \nabla_{\beta} \ln p_{\beta}(\mathbf{x}),
+$$<p>because $\ln p_{\alpha}(y|\mathbf{x})$ does not depend on $\beta$.</p>
+<p>In other words, we can simply first train $p_{\alpha}(y|\mathbf{x})$ using all data with labels, and then train $p_{\beta}(\mathbf{x})$ using all available data. So what is a potential pitfall with this approach? Intuitively, we can say that there is no guarantee that both distributions treat $\mathbf{x}$ in the same manner and, thus, could introduce their errors. Moreover, due to stochasticity during training, there is no information flow between random variables $\mathbf{x}$ and $y$ and, as a result, the neural networks seek for own (local) minima during training. To use a metaphor, they are like two wings of a bird that move in total separation, asynchronously.</p>
+<p>Moreover, training both models separately is also inefficient. We must use two different neural networks, with no weight sharing. Since training is stochastic, we really could worry about potential bad local optima and our worries are even doubled now.</p>
+<p>Would such an approach fail? Well, it's not a simple question. Probably, it could work pretty well even, but it might lead to models far from optimal ones. Either way, who likes being unclear about training models? At least not me.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h4 id="Approach-2:-Shared-parameterization">Approach 2: Shared parameterization<a class="anchor-link" href="#Approach-2:-Shared-parameterization">&#182;</a></h4>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Alright, so since I whine about sharing the parameterization, it is obvious that the second approach uses (drums here)... a shared parameterization! To be more precise, a partially shared parameterization is depicted in Figure 2 (the shared neural network is in purple).</p>
+<p><img src="hybrid_approach_2.png" width="200"></p>
+<p><strong>Figure 2.</strong> An approach to learning the joint distribution by using a partially shared parameterization.</p>
+<p>Now, the logarithm of the joint distribution is the following:</p>
+$$
+\ln p(\mathbf{x}, y) = \ln p_{\alpha, \gamma}(y|\mathbf{x}) + \ln p_{\beta, \gamma}(\mathbf{x}), 
+$$<p>where it is worth highlighting that both distributions partially share the parameterization $\gamma$ (i.e., the purple neural network). As a result, during training, there is an obvious information sharing between $\mathbf{x}$ and $y$! Intuitively, both distributions operate on a processed $\mathbf{x}$, and then this representation is specialized to give probabilities for classes and objects.</p>
+<p>Again, one might ask what is all fuzz about?! First of all, now the two distributions are tightly connected. Like in the metaphor of a bird used before, now both wings can move together. Second, from the optimization perspective, the gradients flow through the $\gamma$ network, and, thus, it contains information about both $\mathbf{x}$ and $y$. This may greatly help in finding a better solution.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Hybrid-modeling">Hybrid modeling<a class="anchor-link" href="#Hybrid-modeling">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>At the first glance, there is nothing wrong in learning the model expressed as:</p>
+$$
+\ln p(\mathbf{x}, y) = \ln p_{\alpha, \gamma}(y|\mathbf{x}) + \ln p_{\beta, \gamma}(\mathbf{x}).
+$$<p>However, let us think about dimensionalities of $y$ and $\mathbf{x}$. For instance, if $y$ is binary, then we have one single bit representing a class label. For a binary vector of $\mathbf{x}$, we have $D$ bits. Hence, there is a clear discrepancy in scales! Let us take a look at the gradient with respect to $\gamma$:</p>
+$$
+\nabla_{\gamma} \ln p(\mathbf{x}, y) = \nabla_{\gamma} \ln p_{\alpha, \gamma}(y|\mathbf{x}) + \nabla_{\gamma} \ln p_{\beta, \gamma}(\mathbf{x}).
+$$<p>If we think about it, during training, the $\gamma$ network obtains a much stronger signal from $\ln p_{\beta, \gamma}(\mathbf{x})$. Following our example of binary variables, let's say our neural nets return all probabilities equal $0.5$, so for the independent Bernoulli variables we get:</p>
+\begin{align*}
+\ln Bern(y|0.5) &amp;= y \ln 0.5 + (1-y) \ln 0.5\\
+&amp;= - \ln 2.
+\end{align*}<p>where we use the property of the logarithm ($\ln 0.5 = \ln 2^{-1} = - \ln 2$) and it doesn't matter what is the value of $y$ because the neural network returns $0.5$ for $y=0$ and $y=1$, and similarly for $\mathbf{x}$:</p>
+\begin{align*}
+\ln \prod_{d=1}^{D} Bern(x_{d}|0.5) &amp;= \sum_{d=1}^{D} \ln Bern(x_{d}|0.5) \\
+&amp;= - D\ln 2 .
+\end{align*}<p>Therefore, we see that the $\ln p_{\beta, \gamma}(\mathbf{x})$ part is $D$-times stronger than the $\ln p_{\alpha, \gamma}(y|\mathbf{x})$ part! How does it influence the final gradients during training? Think about it for a while and consider the information flow through $\gamma$. Do you see it? Yes, the $\gamma$ neural network will obtain more information from the marginal distribution that could cripple the classification part. In other words, our final model will be always <strong>biased towards the marginal part</strong>. Can we do something about it? Fortunately, yes!</p>
+<p>In (Bouchard &amp; Triggs, 2004) it is proposed to consider the convex combination of $\ln p(y|\mathbf{x})$ and $\ln p(\mathbf{x})$ as the objective function, namely:</p>
+$$
+\mathcal{L}(\mathbf{x},y;\lambda) = (1 - \lambda) \ln p(y|\mathbf{x}) + \lambda \ln p(\mathbf{x})
+$$<p>where $\lambda \in [0, 1]$. Unfortunately, this weighting scheme is not derived from a well-defined distribution and it breaks the elegance of the likelihood-based approach. However, if you don't mind being inelegant, then this approach should work well!</p>
+<p>A different approach is proposed in (Nalisnick et al., 2019) where only $\ln p(\mathbf{x})$ is weighted:</p>
+$$
+\ell(\mathbf{x},y;\lambda) = \ln p(y|\mathbf{x}) + \lambda \ln p(\mathbf{x})
+$$<p>where $\lambda \ge 0$. This kind of weighting was proposed in various forms before (e.g., see (Kingma et al., 2014), (Tulyakov et al., 2017)). Still, the fudge factor $\lambda$ is not derived from a probabilistic perspective. However, (Nalisnick et al., 2019) argue that we can interpret $\lambda$ as a way of encouraging robustness to input variations. They also mention that scaling $\ln p(\mathbf{x})$ can be seen as a Jacobian-based regularization penalty. It is still not a valid distribution (because it is equivalent to $p(\mathbf{x})^{\lambda}$), but at least could be interpreted nicely.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>In (Nalisnick et al., 2019), the hybrid modeling idea has been pursued with $p(\mathbf{x})$ being modeled by flows (in the paper they used GLOW) and then, the resulting latents $\mathbf{z}$ were used as an input to the classifier. In other words, a flow-based model is used for $p(\mathbf{x})$ and the invertible neural network (e.g., consisting of coupling layers) is shared with the classifier. Then, the final layers on top of the invertible neural network are used to make a decision $y$. The objective function is $\ell(\mathbf{x},y;\lambda)$ as defined before. The approach is schematically presented in Figure 3.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><img src="hybrid_idf.png" width="200"></p>
+<p><strong>Figure 3.</strong> Hybrid modeling using invertible neural networks and flow-based models.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>There are a couple of interesting properties of such an approach. First, we can use the invertible neural network for both the generative and discriminative parts of the model. Hence, the flow-based model is well-informed about the label. Second, the weighting $\lambda$ allows controlling whether the model is <em>more</em> discriminative or <em>more</em> generative. Third, we can use <strong>any</strong> flow-based model! (Nalisnick et al., 2019) used GLOW, however, (Chen et al., 2019) used residual flows, and (Perugachi-Diaz et al., 2021) applied invertible DenseNets. Fourth, as presented by (Nalisnick et al., 2019), we can use <strong>any</strong> classifier/regressor, e.g., Bayesian classifiers.</p>
+<p>A potential drawback of this approach lies in the necessity of determining $\lambda$. This is an extra hyperparameter that requires tuning. Moreover, as noticed in previous papers (Nalisnick et al., 2019; Chen et al., 2019; Perugachi-Diaz et al., 2021), the value of $\lambda$ drastically changes the performance of the model from discriminative to generative. That is an open question how to deal with that.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Let's-implement-it!">Let's implement it!<a class="anchor-link" href="#Let's-implement-it!">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Above, we discussed using GLOW or other continuous flow-based generative model. Let us consider a fully-connected neural network to model the conditional distribution $p(y|\mathbf{x})$, namely:</p>
+$$
+\mathbf{z} \rightarrow \mathrm{Linear}(D, M) \rightarrow \mathrm{ReLU} \rightarrow \mathrm{Linear}(M, M) \rightarrow \mathrm{ReLU} \rightarrow \mathrm{Linear}(M, K) \rightarrow \mathrm{Softmax} 
+$$<p>where $D$ is the dimensionality of $\mathbf{x}$ and $K$ is the number of classes. The softmax gives us probabilities for each class. Remember that $\mathbf{z} = f^{-1}(\mathbf{x})$ and $f$ is an invertible neural network!</p>
+<p>Next, we model $p(\mathbf{x})$ by applying the change of variables formula, namely:</p>
+$$
+p(\mathbf{x}) = \pi\left(\mathbf{z} = f^{-1}(\mathbf{x})\right)\ |\mathbf{J}_{f}(\mathbf{x})|^{-1}
+$$<p>where $\mathbf{J}_{f}(\mathbf{x})$ denotes the Jacobian of the transformation (i.e., neural network) $f$ evaluated at $\mathbf{x}$.</p>
+<p>In our example, we use the categorical distribution for the conditional $p(y|\mathbf{x})$:</p>
+$$
+p(y|\mathbf{x}) = \prod_{k=1}^{K} \theta_{k}(\mathbf{x})^{[y=k]} ,
+$$<p>where $\theta_{k}(\mathbf{x})$ is the softmax value for the $k$-th class, and $[y=k]$ is the Iverson bracket (i.e., $[y=k] = 1$ if $y$ equals $k$, and $0$ - otherwise).</p>
+<p>In the case of the flow, we typically use $\pi(\mathbf{z}) = \mathcal{N}(\mathbf{z}|0,1)$, i.e., the standard Gaussian distribution. Plugging these all information to the objective of the hybrid modeling $\ell(\mathbf{x},y;\lambda)$, we get:</p>
+$$
+\ell(\mathbf{x},y;\lambda) = \sum_{k=1}^{K} [y=k] \ln \theta_{k,g,f}(\mathbf{x}) + \lambda\ \mathcal{N}(\mathbf{z} = f^{-1}(\mathbf{x})|0,1) - \ln |\mathbf{J}_{f}(\mathbf{x})| .
+$$<p>where we additionally highlight that $\theta_{k,g,f}$ is parameterized by two neural networks: $f$ from the flow and $g$ for the final classification.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Now, if we would like to follow (Nalisnick et al., 2019), we could pick <strong>coupling layers</strong> as the components of $f$ and, eventually, we would model $p(\mathbf{x})$ using RealNVP or GLOW, for instance. However, we want to be more <em>fancy</em> and we will utilize Integer Discrete Flows (IDFs) (van den Berg et al., 2020; Hoogeboom et al., 2019). Why? Because we simply can and also IDFs don't require calculating the Jacobian. Besides, we can practice a bit formulating hybrid models.</p>
+<p>Let's quickly recall IDFs. First, they operate on $\mathbb{Z}^{D}$, i.e., integers. Second, we need to pick an appropriate $\pi(\mathbf{z})$ that in this case is the <strong>discretized logistic</strong> (DL), $\mathrm{DL}(z|\mu, \nu)$. Since the change of variable formula for discrete random variables does not require calculating the Jacobian (remember: no change of volume here!), we can rewrite the hybrid modeling objective as follows:</p>
+$$
+\ell(\mathbf{x},y;\lambda) = \sum_{k=1}^{K} [y=k] \ln \theta_{k,g,f}(\mathbf{x}) + \lambda\ \mathrm{DL}(\mathbf{z} = f^{-1}(\mathbf{x})|\mu,\nu) .
+$$<p>That's it! Congratulations, if you follow all these steps, you have arrived at a new hybrid model that uses IDFs to model a distribution of $\mathbf{x}$. Notice that now the classifier takes integers as input.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Now, we have all components to implement our own Hybrid Integer Discrete Flow (HybridIDF)! Below, there is a code with a lot of comments that should help to understand every single line of it. The full code (with auxiliary functions) that you can play with is available here: <a href="https://github.com/jmtomczak/intro_dgm" target="_blank">[link]</a>.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt"></div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">HybridIDF</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">netts</span><span class="p">,</span> <span class="n">classnet</span><span class="p">,</span> <span class="n">num_flows</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">1.</span><span class="p">,</span> <span class="n">D</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">HybridIDF</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;HybridIDF by JT.&#39;</span><span class="p">)</span>
+        
+        <span class="c1"># Here we use twe two options discussed previously: a coupling layer or a generalized invertible transformation</span>
+        <span class="c1"># These formulate the transformation f.</span>
+        <span class="c1"># NOTE: Please pay attention to a new variable here, namely, beta. This is the rezero trick used in (van den Berg et al., 2020).</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">netts</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">t</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">([</span><span class="n">netts</span><span class="p">[</span><span class="mi">0</span><span class="p">]()</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_flows</span><span class="p">)])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">idf_git</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">beta</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t</span><span class="p">)))</span>
+        
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">netts</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">t_a</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">([</span><span class="n">netts</span><span class="p">[</span><span class="mi">0</span><span class="p">]()</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_flows</span><span class="p">)])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">t_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">([</span><span class="n">netts</span><span class="p">[</span><span class="mi">1</span><span class="p">]()</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_flows</span><span class="p">)])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">t_c</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">([</span><span class="n">netts</span><span class="p">[</span><span class="mi">2</span><span class="p">]()</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_flows</span><span class="p">)])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">t_d</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">([</span><span class="n">netts</span><span class="p">[</span><span class="mi">3</span><span class="p">]()</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_flows</span><span class="p">)])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">idf_git</span> <span class="o">=</span> <span class="mi">4</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">beta</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_a</span><span class="p">)))</span>
+        
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;You can provide either 1 or 4 translation nets.&#39;</span><span class="p">)</span>
+        
+        <span class="c1"># This contains extra layers for classification on top of z.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">classnet</span> <span class="o">=</span> <span class="n">classnet</span>
+        
+        <span class="c1"># The number of flows (i.e., f&#39;s).</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_flows</span> <span class="o">=</span> <span class="n">num_flows</span>
+        
+        <span class="c1"># The rounding operator.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">round</span> <span class="o">=</span> <span class="n">RoundStraightThrough</span><span class="o">.</span><span class="n">apply</span>
+        
+        <span class="c1"># The mean and log-scale for the base distribution pi. </span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mean</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">D</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logscale</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">D</span><span class="p">))</span>
+        
+        <span class="c1"># The dimensionality of the input.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">D</span> <span class="o">=</span> <span class="n">D</span>
+        
+        <span class="c1"># Since using &quot;lambda&quot; is confusing for Python, we will use alpha in the code for lambda in previous equations (not confusin at all, right?!)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span> <span class="o">=</span> <span class="n">alpha</span>
+        
+        <span class="c1"># We use the built-in PyTorch loss function. It is for educational purposes! Otherwise, we could use the log-categorical.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nll</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">NLLLoss</span><span class="p">(</span><span class="n">reduction</span><span class="o">=</span><span class="s1">&#39;none&#39;</span><span class="p">)</span> <span class="c1">#it requires log-softmax as input!!</span>
+    
+    <span class="c1"># The coupling layer as introduced before.</span>
+    <span class="c1"># NOTE: We use the rezero trick!</span>
+    <span class="k">def</span> <span class="nf">coupling</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">forward</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">idf_git</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="p">(</span><span class="n">xa</span><span class="p">,</span> <span class="n">xb</span><span class="p">)</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            
+            <span class="k">if</span> <span class="n">forward</span><span class="p">:</span>
+                <span class="n">yb</span> <span class="o">=</span> <span class="n">xb</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">beta</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t</span><span class="p">[</span><span class="n">index</span><span class="p">](</span><span class="n">xa</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">yb</span> <span class="o">=</span> <span class="n">xb</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">beta</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t</span><span class="p">[</span><span class="n">index</span><span class="p">](</span><span class="n">xa</span><span class="p">))</span>
+            
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">xa</span><span class="p">,</span> <span class="n">yb</span><span class="p">),</span> <span class="mi">1</span><span class="p">)</span>
+        
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">idf_git</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="p">(</span><span class="n">xa</span><span class="p">,</span> <span class="n">xb</span><span class="p">,</span> <span class="n">xc</span><span class="p">,</span> <span class="n">xd</span><span class="p">)</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            
+            <span class="k">if</span> <span class="n">forward</span><span class="p">:</span>
+                <span class="n">ya</span> <span class="o">=</span> <span class="n">xa</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">beta</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_a</span><span class="p">[</span><span class="n">index</span><span class="p">](</span><span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">xb</span><span class="p">,</span> <span class="n">xc</span><span class="p">,</span> <span class="n">xd</span><span class="p">),</span> <span class="mi">1</span><span class="p">)))</span>
+                <span class="n">yb</span> <span class="o">=</span> <span class="n">xb</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">beta</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_b</span><span class="p">[</span><span class="n">index</span><span class="p">](</span><span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">ya</span><span class="p">,</span> <span class="n">xc</span><span class="p">,</span> <span class="n">xd</span><span class="p">),</span> <span class="mi">1</span><span class="p">)))</span>
+                <span class="n">yc</span> <span class="o">=</span> <span class="n">xc</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">beta</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_c</span><span class="p">[</span><span class="n">index</span><span class="p">](</span><span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">ya</span><span class="p">,</span> <span class="n">yb</span><span class="p">,</span> <span class="n">xd</span><span class="p">),</span> <span class="mi">1</span><span class="p">)))</span>
+                <span class="n">yd</span> <span class="o">=</span> <span class="n">xd</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">beta</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_d</span><span class="p">[</span><span class="n">index</span><span class="p">](</span><span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">ya</span><span class="p">,</span> <span class="n">yb</span><span class="p">,</span> <span class="n">yc</span><span class="p">),</span> <span class="mi">1</span><span class="p">)))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">yd</span> <span class="o">=</span> <span class="n">xd</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">beta</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_d</span><span class="p">[</span><span class="n">index</span><span class="p">](</span><span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">xa</span><span class="p">,</span> <span class="n">xb</span><span class="p">,</span> <span class="n">xc</span><span class="p">),</span> <span class="mi">1</span><span class="p">)))</span>
+                <span class="n">yc</span> <span class="o">=</span> <span class="n">xc</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">beta</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_c</span><span class="p">[</span><span class="n">index</span><span class="p">](</span><span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">xa</span><span class="p">,</span> <span class="n">xb</span><span class="p">,</span> <span class="n">yd</span><span class="p">),</span> <span class="mi">1</span><span class="p">)))</span>
+                <span class="n">yb</span> <span class="o">=</span> <span class="n">xb</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">beta</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_b</span><span class="p">[</span><span class="n">index</span><span class="p">](</span><span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">xa</span><span class="p">,</span> <span class="n">yc</span><span class="p">,</span> <span class="n">yd</span><span class="p">),</span> <span class="mi">1</span><span class="p">)))</span>
+                <span class="n">ya</span> <span class="o">=</span> <span class="n">xa</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">beta</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_a</span><span class="p">[</span><span class="n">index</span><span class="p">](</span><span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">yb</span><span class="p">,</span> <span class="n">yc</span><span class="p">,</span> <span class="n">yd</span><span class="p">),</span> <span class="mi">1</span><span class="p">)))</span>
+            
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">ya</span><span class="p">,</span> <span class="n">yb</span><span class="p">,</span> <span class="n">yc</span><span class="p">,</span> <span class="n">yd</span><span class="p">),</span> <span class="mi">1</span><span class="p">)</span>
+    
+    <span class="c1"># The permutation layer.</span>
+    <span class="k">def</span> <span class="nf">permute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">x</span><span class="o">.</span><span class="n">flip</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    
+    <span class="c1"># The flow transformation: forward pass...</span>
+    <span class="k">def</span> <span class="nf">f</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="n">x</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_flows</span><span class="p">):</span>
+            <span class="n">z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coupling</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">forward</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">permute</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">z</span>
+    <span class="c1"># ... and the inverse pass.</span>
+    <span class="k">def</span> <span class="nf">f_inv</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">z</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_flows</span><span class="p">)):</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">permute</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coupling</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">forward</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">x</span>
+    
+    <span class="c1"># A new function: This is used for classification. First we predict probabilities, and then pick the most probable value.</span>
+    <span class="k">def</span> <span class="nf">classify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">y_pred</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">classnet</span><span class="p">(</span><span class="n">z</span><span class="p">)</span> <span class="c1">#output: probabilities (i.e., softmax)</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">y_pred</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    
+    <span class="c1"># An auxiliary function: We use it for calculating the classification loss, namely, the negative log-likelihood for p(y|x).</span>
+    <span class="c1"># NOTE: We first apply the invertible transformation f.</span>
+    <span class="k">def</span> <span class="nf">class_loss</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">y_pred</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">classnet</span><span class="p">(</span><span class="n">z</span><span class="p">)</span> <span class="c1">#output: probabilities (i.e., softmax)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">nll</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">y_pred</span><span class="p">),</span> <span class="n">y</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batchSize</span><span class="p">):</span>
+        <span class="c1"># sample z:</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_sample</span><span class="p">(</span><span class="n">batchSize</span><span class="o">=</span><span class="n">batchSize</span><span class="p">,</span> <span class="n">D</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">)</span>
+        <span class="c1"># x = f^-1(z)</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">f_inv</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">x</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">batchSize</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">)</span>
+    
+    <span class="c1"># The log-probability of the base distribution (a.k.a. prior).</span>
+    <span class="k">def</span> <span class="nf">log_prior</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">log_p</span> <span class="o">=</span> <span class="n">log_integer_probability</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">mean</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">logscale</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">log_p</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    
+    <span class="c1"># Sampling from the base distribution.</span>
+    <span class="k">def</span> <span class="nf">prior_sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batchSize</span><span class="p">,</span> <span class="n">D</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
+        <span class="c1"># Sample from logistic</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">batchSize</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">)</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">logscale</span><span class="p">)</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">y</span> <span class="o">/</span> <span class="p">(</span><span class="mf">1.</span> <span class="o">-</span> <span class="n">y</span><span class="p">))</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">mean</span>
+        <span class="c1"># And then round it to an integer.</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    
+    <span class="c1"># The forward pass: Now, we use the hybrid model objective!</span>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="s1">&#39;avg&#39;</span><span class="p">):</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">y_pred</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">classnet</span><span class="p">(</span><span class="n">z</span><span class="p">)</span> <span class="c1">#output: probabilities (i.e., softmax)</span>
+        
+        <span class="n">idf_loss</span> <span class="o">=</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">log_prior</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+        <span class="n">class_loss</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nll</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">y_pred</span><span class="p">),</span> <span class="n">y</span><span class="p">)</span> <span class="c1">#remember to use logarithm on top of softmax!</span>
+        
+        <span class="k">if</span> <span class="n">reduction</span> <span class="o">==</span> <span class="s1">&#39;sum&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">class_loss</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span> <span class="o">*</span> <span class="n">idf_loss</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">class_loss</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span> <span class="o">*</span> <span class="n">idf_loss</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt"></div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="c1"># The number of invertible transformations</span>
+<span class="n">num_flows</span> <span class="o">=</span> <span class="mi">2</span>
+
+<span class="c1"># Here, we present only for the option 1 IDF.</span>
+<span class="n">nett</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">D</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="n">M</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">LeakyReLU</span><span class="p">(),</span>
+                                     <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">M</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">LeakyReLU</span><span class="p">(),</span>
+                                     <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">D</span> <span class="o">//</span> <span class="mi">2</span><span class="p">))</span>
+<span class="n">netts</span> <span class="o">=</span> <span class="p">[</span><span class="n">nett</span><span class="p">]</span>
+
+<span class="c1"># And a three-layered classifier.</span>
+<span class="n">classnet</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">D</span><span class="p">,</span> <span class="n">M</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">LeakyReLU</span><span class="p">(),</span>
+                         <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">M</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">LeakyReLU</span><span class="p">(),</span>
+                         <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">K</span><span class="p">),</span>
+                         <span class="n">nn</span><span class="o">.</span><span class="n">Softmax</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+
+<span class="c1"># Init HybridIDF</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">HybridIDF</span><span class="p">(</span><span class="n">netts</span><span class="p">,</span> <span class="n">classnet</span><span class="p">,</span> <span class="n">num_flows</span><span class="p">,</span> <span class="n">D</span><span class="o">=</span><span class="n">D</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="n">alpha</span><span class="p">)</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>And we are done, this is all we need to have! After running the code (take a look at: <a href="https://github.com/jmtomczak/intro_dgm" target="_blank">[link]</a>) and training the HybridIDFs, we should obtain results similar to the following:</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>A</strong> <img src="hybrid_idf_real_images.png" width="200"> 
+<strong>B</strong> <img src="hybrid_idf_generated_images.png" width="200">
+<strong>C</strong> <img src="hybrid_idf_ca_val_curve.png" width="250">
+<strong>D</strong> <img src="hybrid_idf_gen_val_curve.png" width="250"></p>
+<p><strong>Figure 5.</strong> Examples of outcomes of the training:
+<strong>A</strong> Randomly selected real images.
+<strong>B</strong> Unconditional generations from the HybridIDF.
+<strong>C</strong> An example of a validation curve for the classification error.
+<strong>D</strong> An example of a validation curve for the negative log-likelihood, i.e., $-\ln p(\mathbf{x})$.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="What's-next?">What's next?<a class="anchor-link" href="#What's-next?">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Hybrid VAE</strong> The hybrid modeling idea goes beyond using flows for $p(\mathbf{x})$. Instead, we can pick VAE and then, after applying the variational inference, we get a lower bound to the hybrid modeling objective:</p>
+$$
+\tilde{\ell}(\mathbf{x}, y; \lambda) = \ln p(y|\mathbf{x}) + \lambda\ \mathbb{E}_{\mathbf{z} \sim q(\mathbf{z}|\mathbf{x})}\left[ \ln p(\mathbf{x}|\mathbf{z}) + \ln p(\mathbf{z}) - \ln q(\mathbf{z}|\mathbf{x}) \right] .
+$$<p>where $p(y|\mathbf{x})$ uses the encoder inside, $q(\mathbf{z}|\mathbf{x})$.</p>
+<p><strong>Semi-supervised hybrid learning</strong> The hybrid modeling perspective is perfectly suited to the semi-supervised scenarion. For the labeled data, we can use the objective $\ell(\mathbf{x},y;\lambda) = \ln p(y|\mathbf{x}) + \lambda \ln p(\mathbf{x})$. However, for the unlabeled data, we can simply consider only the $\ln p(\mathbf{x})$ part. Such approach was used by (Ilse et al., 2020) for VAEs.</p>
+<p>A very interesting perspective to learning semi-supervised VAE was presented in (Joy et al., 2020). The authors end up with an objective that resemblances the hybrid modeling objective but without the cumbersome $\lambda$!</p>
+<p><strong>The factor $\lambda$</strong> As mentioned before, the fudge factor $\lambda$ could be troublesome. First, it does not follow form a proper probability distribution. Second, it must be tuned that is always extra trouble... But, as mentioned before, (Joy et al., 2020) showed that we can get rid of $\lambda$!</p>
+<p><strong>New parameterizations</strong> An interesting open research direction is whether we can get rid of $\lambda$ by using a different learning algorithm and/or other parameterization (e.g., some neural networks). I strongly believe it is possible and, one day, we will get there!</p>
+<p><strong>Is this a good factorization?</strong> I am almost sure that some of you wonders whether this factorization of the joint, i.e., $p(\mathbf{x}, y) = p(y|\mathbf{x})\ p(\mathbf{x})$ is indeed better than $p(\mathbf{x}, y) = p(\mathbf{x}|y)\ p(y)$. If I were to sample $\mathbf{x}$ from a specific class $y$, then the latter is better. However, if you go back to the very first post, you will notice that I don't care about <em>generating</em>. I prefer to have a good model that will assign proper probabilities to the world. That's why I prefer $p(\mathbf{x}, y) = p(y|\mathbf{x})\ p(\mathbf{x})$.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="References">References<a class="anchor-link" href="#References">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>(van den Berg et al., 2020) van den Berg, R., Gritsenko, A. A., Dehghani, M., Sønderby, C. K., &amp; Salimans, T. (2020). IDF++: Analyzing and Improving Integer Discrete Flows for Lossless Compression. arXiv preprint arXiv:2006.12459.</p>
+<p>(Bouchard &amp; Triggs, 2004) Bouchard, G., &amp; Triggs, B. (2004). The tradeoff between generative and discriminative classifiers. In 16th IASC International Symposium on Computational Statistics (COMPSTAT'04) (pp. 721-728).</p>
+<p>(Chen et al., 2019) Chen, R. T., Behrmann, J., Duvenaud, D., &amp; Jacobsen, J. H. (2019). Residual flows for invertible generative modeling. arXiv preprint arXiv:1906.02735.</p>
+<p>(Hoogeboom et al., 2019) Hoogeboom, E., Peters, J. W., Berg, R. V. D., &amp; Welling, M. (2019). Integer discrete flows and lossless compression. arXiv preprint arXiv:1905.07376.</p>
+<p>(Ilse et al., 2020) Ilse, M., Tomczak, J. M., Louizos, C., &amp; Welling, M. (2020). Diva: Domain invariant variational autoencoders. In Medical Imaging with Deep Learning (pp. 322-348). PMLR.</p>
+<p>(Joy et al., 2020) Joy, T., Schmon, S. M., Torr, P. H., Siddharth, N., &amp; Rainforth, T. (2020). Rethinking Semi-Supervised Learning in VAEs. arXiv preprint arXiv:2006.10102.</p>
+<p>(Kingma et al., 2014) Kingma, D. P., Rezende, D. J., Mohamed, S., &amp; Welling, M. (2014). Semi-supervised learning with deep generative models. arXiv preprint arXiv:1406.5298.</p>
+<p>(Lasserre et al., 2006) Lasserre, J. A., Bishop, C. M., &amp; Minka, T. P. (2006, June). Principled hybrids of generative and discriminative models. In 2006 IEEE Computer Society Conference on Computer Vision and Pattern Recognition (CVPR'06) (Vol. 1, pp. 87-94). IEEE.</p>
+<p>(Perugachi-Diaz et al., 2021) Perugachi-Diaz, Y., Tomczak, J. M., &amp; Bhulai, S. (2021). Invertible DenseNets with Concatenated LipSwish. arXiv preprint arXiv:2102.02694.</p>
+<p>(Nalisnick et al., 2019) Nalisnick, E., Matsukawa, A., Teh, Y. W., Gorur, D., &amp; Lakshminarayanan, B. (2019). Hybrid models with deep and invertible features. In International Conference on Machine Learning (pp. 4723-4732). PMLR.</p>
+<p>(Tulyakov et al., 2017) Tulyakov, S., Fitzgibbon, A., &amp; Nowozin, S. (2017). Hybrid VAE: Improving deep generative models using partial observations. arXiv preprint arXiv:1711.11566.</p>
+
+</div>
+</div>
+</div>
+    </div>
+  </div>
+</body>
+
+ 
+
+
+</html>

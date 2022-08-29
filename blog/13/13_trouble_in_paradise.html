@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>13_trouble_in_paradise</title><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+
+
+<!-- MUST INCLUDE TO PROPERLY ADD HEADER! -->
+<link rel="stylesheet" type="text/css" media="screen" href="../../css/main.css" />
+<link rel="stylesheet" type="text/css" media="screen" href="../blog.css" />
+
+<!-- Loading mathjax macro -->
+<!-- Load mathjax -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_HTML"></script>
+    <!-- MathJax configuration -->
+    <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+        tex2jax: {
+            inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+            displayMath: [ ['$$','$$'], ["\\[","\\]"] ],
+            processEscapes: true,
+            processEnvironments: true
+        },
+        // Center justify equations in code and markdown cells. Elsewhere
+        // we use CSS to left justify single line equations in code cells.
+        displayAlign: 'center',
+        "HTML-CSS": {
+            styles: {'.MathJax_Display': {"margin": 0}},
+            linebreaks: { automatic: true }
+        }
+    });
+    </script>
+    <!-- End of mathjax configuration --></head>
+<body>
+  <div tabindex="-1" id="notebook" class="border-box-sizing">
+    <div class="container" id="notebook-container">
+
+<div id="header">
+  
+</div>
+
+<body class="jp-Notebook" data-jp-theme-light="true" data-jp-theme-name="JupyterLab Light">
+
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h1 id="Trouble-in-paradise:-Does-it-make-sense-to-train-latent-variable-models-with-variational-inference?">Trouble in paradise: Does it make sense to train latent variable models with variational inference?<a class="anchor-link" href="#Trouble-in-paradise:-Does-it-make-sense-to-train-latent-variable-models-with-variational-inference?">&#182;</a></h1>
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="Background-on-Latent-Variable-Models">Background on Latent Variable Models<a class="anchor-link" href="#Background-on-Latent-Variable-Models">&#182;</a></h3>
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>Let us consider observable random variables $\mathbf{x} \in \mathcal{X}$ and latent random variables $\mathbf{z} \in \mathcal{Z}$. There is given an empirical distribution $p_{\mathrm{data}} (\mathbf{x})$. We use a latent variable model with parameters $\vartheta = \{\theta, \lambda\}$, namely:
+	
+\begin{equation}
+    p_{\mathrm{model}} (\mathbf{x}) = \int p_{\theta}(\mathbf{x} | \mathbf{z})\ p_{\lambda}(\mathbf{z}) \mathrm{d}\mathbf{z} ,
+\end{equation}
+that could be interpreted as a mixture model. For $\mathcal{Z} \equiv \{0, 1, \ldots, K-1\}$, we get a finite mixture model, and for $\mathcal{Z} \equiv \mathbb{R}^{K}$ we get an infinite mixture model.</p>
+
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+	<br>
+<p>Further, let us assume that we have given data $\mathcal{D}$, or, equivalently, the empirical distribution $p_{\mathrm{data}}(\mathbf{x})$, i.e., $\mathcal{D} \sim p_{\mathrm{data}}(\mathbf{x})$. Later on, we will denote $p_{\mathrm{data}}(\mathbf{x})$ by $q(\mathbf{x})$ for simplicity. Typically, learning $p_{\mathrm{model}} (\mathbf{x})$ corresponds to maximizing the log-likelihood function, or, equivalently, minimizing the Kullback-Leibler divergence between $p_{\mathrm{data}}$ and $p_{\mathrm{model}}$:
+	
+\begin{align}
+    D_{\mathrm{KL}}\left[p_{\mathrm{data}} \| p_{\mathrm{model}} \right] &amp;= \sum_{\mathbf{x}} p_{\mathrm{data}}(\mathbf{x}) \ln \frac{p_{\mathrm{data}}(\mathbf{x})}{p_{\mathrm{model}}(\mathbf{x})} \\
+    &amp;= -\mathbb{H}_{p_{\mathrm{data}}}\left[ \mathbf{x} \right] - \mathbb{E}_{\mathbf{x} \sim p_{\mathrm{data}}(\mathbf{x})}\left[ \ln p_{\mathrm{model}}(\mathbf{x}) \right] \\
+    &amp;= -\mathbb{H}_{p_{\mathrm{data}}}\left[ \mathbf{x} \right] + \mathbb{C}\mathbb{E}\left[p_{\mathrm{data}}(\mathbf{x}) || p_{\mathrm{model}}(\mathbf{x}) \right].
+\end{align}</p>
+
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+	<br>
+<p>In other words, minimizing the Kullback-Leibler divergence with respect to the model parameters corresponds to maximizing the cross entropy between the data (empirical) distribution and the model.</p>
+
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="Learning-Latent-Variable-Models-with-Variational-Inference">Learning Latent Variable Models with Variational Inference<a class="anchor-link" href="#Learning-Latent-Variable-Models-with-Variational-Inference">&#182;</a></h3>
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>Since our model is the latent variable model, calculating the cross-entropy term becomes troublesome. One possible approach to learn such a model is the utilization of (amortized) variational inference. Here, we consider the amortized family of variational posteriors with parameters $\phi$, $q_{\phi}(\mathbf{z} | \mathbf{x})$. Then, we can calculate the lower-bound on the cross-entropy term that we want to maximize, namely:
+	
+\begin{align}
+    \mathbb{E}_{\mathbf{x} \sim p_{\mathrm{data}} (\mathbf{x})}\left[ \ln p_{\mathrm{model}} (\mathbf{x}) \right] &amp;= \mathbb{E}_{\mathbf{x} \sim p_{\mathrm{data}} (\mathbf{x})}\left[ \ln \int p_{\theta}(\mathbf{x} | \mathbf{z})\ p_{\lambda}(\mathbf{z}) \mathrm{d}\mathbf{z} \right] \\
+    &amp;\geq \mathbb{E}_{\mathbf{x} \sim p_{\mathrm{data}} (\mathbf{x})}\left[ \mathbb{E}_{\mathbf{z} \sim q_{\phi}(\mathbf{z}|\mathbf{x})}\left[ \ln p_{\theta}(\mathbf{x} | \mathbf{z}) + \ln p_{\lambda}(\mathbf{z}) - \ln q_{\phi}(\mathbf{z} | \mathbf{x}) \right] \right] \\
+    &amp;= \mathbb{E}_{\mathbf{x},\mathbf{z} \sim q_{\phi}(\mathbf{z}|\mathbf{x})p_{\mathrm{data}} (\mathbf{x})}\left[ \ln p_{\theta}(\mathbf{x} | \mathbf{z}) \right] + \mathbb{E}_{\mathbf{z} \sim q_{\phi}(\mathbf{z})}\left[\ln p_{\lambda}(\mathbf{z})\right] + \notag\\
+    &amp;\ - \mathbb{E}_{\mathbf{x},\mathbf{z} \sim q_{\phi}(\mathbf{z}|\mathbf{x})p_{\mathrm{data}} (\mathbf{x})}\left[\ln q_{\phi}(\mathbf{z} | \mathbf{x})\right] \\
+    &amp;= \mathbb{E}_{\mathbf{x},\mathbf{z} \sim q_{\phi}(\mathbf{x},\mathbf{z})}\left[ \ln p_{\theta}(\mathbf{x} | \mathbf{z}) \right] - \mathbb{C}\mathbb{E}\left[ q_{\phi}(\mathbf{z}) \| p_{\lambda}(\mathbf{z}) \right] + \mathbb{H}_{q_{\phi}(\mathbf{x},\mathbf{z})}\left[\mathbf{z} | \mathbf{x}\right] \\
+    &amp;= \mathbb{E}_{\mathbf{x},\mathbf{z} \sim q_{\phi}(\mathbf{x},\mathbf{z})}\left[ \ln p_{\theta}(\mathbf{x} | \mathbf{z}) \right] - \mathbb{C}\mathbb{E}\left[ q_{\phi}(\mathbf{z}) \| p_{\lambda}(\mathbf{z}) \right] + \mathbb{H}_{q_{\phi}(\mathbf{z})}\left[\mathbf{z} \right] - \mathbb{I}_{q_{\phi}(\mathbf{x},\mathbf{z})}\left[\mathbf{x} ; \mathbf{z} \right] \\
+    &amp;= \mathbb{E}_{\mathbf{x},\mathbf{z} \sim q_{\phi}(\mathbf{x},\mathbf{z})}\left[ \ln p_{\theta}(\mathbf{x} | \mathbf{z}) \right] - D_{\mathrm{KL}}\left[ q_{\phi}(\mathbf{z}) \| p_{\lambda}(\mathbf{z}) \right] - \mathbb{I}_{q_{\phi}(\mathbf{x},\mathbf{z})}\left[\mathbf{x} ; \mathbf{z} \right]
+\end{align}</p>
+
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>In the above, we used a few facts:</p>
+<p>(i) Jensen's inequality: $\ln \mathbb{E}_{p}[f(\mathbf{x})] \geq \mathbb{E}_{p}[\ln f(x)]$,</p>
+<p>(ii) $\mathbb{I}[\mathbf{x} ; \mathbf{z}] = \mathbb{H}[\mathbf{z}] - \mathbb{H}[\mathbf{z}|\mathbf{x}]$,</p>
+<p>(iii) $\mathbb{C}\mathbb{E}[q(\mathbf{z})||p(\mathbf{z})] = \mathbb{H}[\mathbf{z}] + D_{\mathrm{KL}}[q(\mathbf{z})||p(\mathbf{z})]$,</p>
+<p>(iv) the aggregated posterior: $q_{\phi}(\mathbf{z}) = \mathbb{E}_{\mathbf{x} \sim q(\mathbf{x})} \left[ q_{\phi}(\mathbf{z} | \mathbf{x}) \right] $.</p>
+
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+	<br>
+<p>Thus, we can write the ELBO as follows:
+	<br><br>
+\begin{equation}
+    \mathbb{E}_{\mathbf{x} \sim p_{\mathrm{data}} (\mathbf{x})}\left[ \ln p_{\mathrm{model}} (\mathbf{x}) \right] \geq \mathbb{E}_{\mathbf{x},\mathbf{z} \sim q_{\phi}(\mathbf{x},\mathbf{z})}\left[ \ln p_{\theta}(\mathbf{x} | \mathbf{z}) \right] - D_{\mathrm{KL}}\left[ q_{\phi}(\mathbf{z}) \| p_{\lambda}(\mathbf{z}) \right] - \mathbb{I}_{q_{\phi}(\mathbf{x},\mathbf{z})}\left[\mathbf{x} ; \mathbf{z} \right] .
+\end{equation}
+<br></p>
+
+<p>This form of the ELBO is not necessarily the form that is optimized in practice. However, it gives us very interesting insight into how the latent variable model is trained by maximizing the ELBO. Let us consider each component separately.</p>
+
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="Analyzing-the-ELBO">Analyzing the ELBO<a class="anchor-link" href="#Analyzing-the-ELBO">&#182;</a></h3>
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+	<br>
+<p>The first component of the ELBO is the negative reconstruction error. In other words, $\mathbf{z}$ is sampled from variational posterior for a given $\mathbf{x}$ and then it is stochastically reconstructed by $p_{\theta}(\mathbf{x}|\mathbf{z})$. That is, the conditional likelihood is used to calculate the reconstruction error. This term tries to make $q_\phi$ as peaky as possible. If $q_{\phi}$ is non-concentrated, is is hard to learn a stochastic mapping from multiple $\mathbf{z}$'s to a single $\mathbf{x}$.</p>
+
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+	<br>
+<p>The second component of the ELBO, $D_{\mathrm{KL}}\left[ q_{\phi}(\mathbf{z}) \| p_{\lambda}(\mathbf{z}) \right]$, determines the error between the aggregated posterior and the marginal over $\mathbf{z}$ (a.k.a. the \textit{prior}). Since we maximize the ELBO, and the term $D_{\mathrm{KL}}\left[ q_{\phi}(\mathbf{z}) \| p_{\lambda}(\mathbf{z}) \right]$ is with the negative sign, we want to minimize it. Thus, the ELBO tells us that the difference between $q_{\phi}(\mathbf{z})$ and $p_{\lambda}(\mathbf{z})$ should be as small as possible. This makes perfect sense because we want the aggregated posterior to assign the probability mass to the same regions as the prior.</p>
+
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+	<br>
+<p>The last component of the ELBO, $\mathbb{I}_{q_{\phi}(\mathbf{x},\mathbf{z})}\left[\mathbf{x} ; \mathbf{z} \right]$, is the mutual information between $\mathbf{x}$ and $\mathbf{z}$ for the aggregated posterior and the empirical distribution. This term appears with the negative sing, hence, the ELBO indicates that this mutual information should be minimized. This is a very puzzling result because, in other words, there should be no stochastic dependency between $\mathbf{z}$ and $\mathbf{x}$. Commonly, $\mathbf{z}$ is interpreted as a representation of $\mathbf{x}$, however, optimizing the ELBO leads to a completely different outcome! $\mathbb{I}_{q_{\phi}(\mathbf{x},\mathbf{z})}\left[\mathbf{x} ; \mathbf{z} \right]$ is a cumbersome component amd it may be an explanation why training latent variable models with variational inference is typically hard.</p>
+
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+	<br>
+<p>In the conclusion, the ELBO navigates the model to fit the aggregated posterior to the prior, and, on the other hand, to learn no stochastic dependency between $\mathbf{x}$ and $\mathbf{z}$ while maintaining a one-to-one mapping from $\mathbf{z}$ to $\mathbf{x}$. This last contradiction may result in a difficult training of the model. As reported in the literature (e.g., (Alemi et al., 2018)), the choice of parameterizations of the distributions play the crucial role and could be the reason for complicating the training. For instance, taking a very powerful parameterization of the conditional likelihood, $p_{\theta}(\mathbf{x}|\mathbf{z})$, e.g., a deep autoregressive model, gives a model that completely disregards $\mathbf{z}$.</p>
+
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="Open-questions-and-the-hypothesis">Open questions and the hypothesis<a class="anchor-link" href="#Open-questions-and-the-hypothesis">&#182;</a></h3>
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+	<br>
+<p>It seems that training a latent variable model by applying variational inference could be challenging. Moreover, it is rather apparent that treating latent variables as a data representation and using variational inference for this purpose make little sense. The mutual information in the ELBO clearly indicates that the goal is the very opposite: Make the stochastic dependency between $\mathbf{x}$ and $\mathbf{z}$ as small as possible! I think we can all agree that this statement has clearly nothing in common with representation learning.</p>
+
+<br>
+
+<p>At this point, one could question whether there is any sense in using latent variables with or even without variational inference. However, we know that models like (hierarchical) Variational Auto-Encoders or diffusion-based models do work. Therefore, instead, we should ask the following questions:</p>
+
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+	<br>
+<ul>
+<li><strong>Q1:</strong> What are latent variables in latent variable models? This is the question we should ask in the first place. The follow-up question is this: Does it make sense to treat $\mathbf{z}$ as the representation of $\mathbf{x}$? And if not, how to interpret $\mathbf{z}$ in latent variable models?</li>
+</ul>
+
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<ul>
+<li><strong>Q2:</strong> Can we make $\mathbf{x}$ and $\mathbf{z}$ stochastically dependent in latent variable models? Recent successes of hierarchical VAEs and diffusion-based models indicate that there must be a reason why they work.</li>
+</ul>
+
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>We claim here that there is no problem with latent variable models and variational inference. Hence, the ELBO itself is not an issue as some may argue. The problem is the family of variational posteriors that may lead to a (nearly) perfect minimization of the mutual information. Then, in the consequence, one gets a model that does not take advantage of potential capacity of $\mathbf{z}$ and learns an unconditional model $p(\mathbf{x}|\mathbf{z})$ with $\mathbf{z}$ being treated as noise. Therefore, we formulate the following hypothesis:</p>
+
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+	<br>
+<center><i>Successful training of latent variable models with variational inference (i.e., optimizing the Evidence Lower BOund) requires formulating a family of variational posteriors that does not lead to a minimization of the mutual information between latents and observables.</i></center><br>
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>We will look into these questions and the hypothesis in the (near) future. Please stay tuned!</p>
+
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="References">References<a class="anchor-link" href="#References">&#182;</a></h3>
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>(Alemi et al., 2018) Alemi, A., Poole, B., Fischer, I., Dillon, J., Saurous, R. A., &amp; Murphy, K. (2018, July). Fixing a broken ELBO. In International Conference on Machine Learning (pp. 159-168). PMLR.</p>
+
+</div>
+</div>
+</body>
+
+
+
+
+
+
+
+</html>

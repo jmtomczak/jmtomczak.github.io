@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" />
+
+<title>2_ARM</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+<!-- MUST INCLUDE TO PROPERLY ADD HEADER! -->
+<link rel="stylesheet" type="text/css" media="screen" href="../../css/main.css" />
+<link rel="stylesheet" type="text/css" media="screen" href="../blog.css" />
+
+<!-- Loading mathjax macro -->
+<!-- Load mathjax -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_HTML"></script>
+    <!-- MathJax configuration -->
+    <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+        tex2jax: {
+            inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+            displayMath: [ ['$$','$$'], ["\\[","\\]"] ],
+            processEscapes: true,
+            processEnvironments: true
+        },
+        // Center justify equations in code and markdown cells. Elsewhere
+        // we use CSS to left justify single line equations in code cells.
+        displayAlign: 'center',
+        "HTML-CSS": {
+            styles: {'.MathJax_Display': {"margin": 0}},
+            linebreaks: { automatic: true }
+        }
+    });
+    </script>
+    <!-- End of mathjax configuration --></head>
+<body>
+	
+  <div tabindex="-1" id="notebook" class="border-box-sizing">
+    <div class="container" id="notebook-container">
+
+<div id="header">
+  <ul>
+    <li><a href="../../index.html"><span>Home</span></a></li>
+    <li><a href="../../presentations.html"><span>Presentations</span></a></li>
+    <li><a href="../../deebmed.html"><span>DeeBMED</span></a></li>
+	<li><a href="../../people.html"><span>People</span></a></li>
+	<li><a href="../../blog.html"><span>BLOG</span></a></li>
+  </ul>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Introduction">Introduction<a class="anchor-link" href="#Introduction">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Before we start discussing how we can model the distribution $p(\mathbf{x})$, we refresh our memory about the core rules of probability theory, namely, the <strong>sum rule</strong> and the <strong>product rule</strong>. Let us introduce two random variables $\mathbf{x}$ and $\mathbf{y}$. Their joint distribution is $p(\mathbf{x}, \mathbf{y})$. The <strong>product rule</strong> allows us to <em>factorize</em> the joint distribution in two manners, namely:</p>
+\begin{align*}
+p(\mathbf{x}, \mathbf{y}) &amp;= p(\mathbf{x} | \mathbf{y}) p(\mathbf{y}) \\
+&amp;= p(\mathbf{y} | \mathbf{x}) p(\mathbf{x}) .
+\end{align*}<p>In other words, the joint distribution could be represented as a product of a marginal distribution and a conditional distribution. The <strong>sum rule</strong> tells us that if we want to calculate the marginal distribution over one of the variables, we must integrate out (or sum out) the other variable, that is:</p>
+$$
+p(\mathbf{x}) = \sum_{\mathbf{y}} p(\mathbf{x}, \mathbf{y}).
+$$<p>These two rules will play a crucial role in formulating deep generative models.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Now, let us consider a high-dimensional random variable $\mathbf{x} \in \mathcal{X}^{D}$ where $\mathcal{X} = \{0,1,\dots , 255\}$ or $\mathcal{X} = \mathbb{R}$. Our goal is to model $p(\mathbf{x})$. Before we jump into thinking of specific parameterization, let's first apply the product rule to express the joint distribution in a different manner:</p>
+$$
+p(\mathbf{x}) = p(x_1) \prod_{d=2}^{D} p(x_{d}|\mathbf{x}_{&lt;d}) ,
+$$<p>where $\mathbf{x}_{&lt;d} = [x_1, x_2, \ldots , x_{d-1}]^{\top}$. For instance, for $\mathbf{x} = [x_1, x_2, x_{3}]^{\top}$, we have $p(\mathbf{x}) = p(x_1) p(x_{2}|x_{1}) p(x_{3} | x_{1}, x_{2})$.</p>
+<p>As we can see, the product rule applied multiple times to the joint distribution provides a principled manner of factorizing the joint distribution into many conditional distributions. That's great news! However, modelling all conditional distributions $p(x_{d}|\mathbf{x}_{&lt;d})$ separately is simply infeasible! If we did that, we would obtain $D$ separate models, and the complexity of each model would grow due to varying conditioning. A natural question is whether we can do better, and the answer is <strong>yes</strong>.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Autoregressive-models-parameterized-by-neural-networks">Autoregressive models parameterized by neural networks<a class="anchor-link" href="#Autoregressive-models-parameterized-by-neural-networks">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>As mentioned earlier, we aim to model the joint distribution $p(\mathbf{x})$ using conditional distributions. However, we will make additional assumptions to use a shared model for these conditional distributions. As a result, we will end up with an <strong>autoregressive model</strong> (ARM). Next, we outline ARMs parameterized with various <em>neural networks</em>.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Finite memory</strong> The first attempt to limiting the complexity of a conditional model is to assume a <em>finite memory</em>. For instance, we can assume that each variable is dependent on max. two other variables, namely:</p>
+$$
+p(\mathbf{x}) = p(x_1) p(x_2|x_1) \prod_{d=3}^{D} p(x_{d}|x_{d-1}, x_{d-2}) .
+$$<p>Then, we can use a small neural network, e.g., Multi-layered Perceprons (MLP), to predict the distribution of $x_{d}$. If $\mathcal{X} = \{0, 1, \ldots, 255\}$, the MLP takes $x_{d-1}, x_{d-2}$ and outputs probabilities for the categorical distribution of $x_{d}$, $\theta_{d}$. The $\mathrm{MLP}$ could be of the following form:</p>
+$$
+[x_{d-1}, x_{d-2}] \rightarrow \mathrm{Linear}(2,M) \rightarrow \mathrm{ReLU} \rightarrow \mathrm{Linear}(M, 256) \rightarrow \mathrm{softmax} \rightarrow \theta_{d}
+$$<p>where $M$ denotes the number of hidden units, e.g., $M=300$. An example of this approach is depicted in Figure 1.</p>
+<p><img src="sequential_MLP.png" width="500"></p>
+<p><strong>Figure 1.</strong> An example of applying a shared MLP depending on two last inputs. Inputs are denoted by blue nodes (bottom), intermediate representations are denoted by orange nodes (middle), and output probabilities are denoted by green nodes (top). Notice that a probability $\theta_d$ is <strong>not</strong> dependent on $x_d$.</p>
+<p>It is important to notice that now we use a single, shared $\mathrm{MLP}$ to predict probabilities for $x_{d}$. Such a model is not only non-linear but also its parameterization is convenient due to a relatively small number of weights to be trained. However, the obvious drawback is a <strong>limited memory</strong>. Moreover, it is unclear <em>a priori</em> how many variables we should use in conditioning. In many problems, e.g., image processing, learning <em>long-range statistics</em> is crucial to understand complex patterns in data, therefore, having long-range memory is crucial.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Long-range memory through RNNs</strong> A possible solution to the problem of a short-range memory relies on applying a recurrent neural network ($\mathrm{RNN}$) (Chung et al., 2014; Hochreiter &amp; Schmidhuber, 1997). In other words, we can model the conditional distributions as follows (Sutskever et al., 2011):</p>
+$$
+p(x_d|\mathbf{x}_{&lt;d}) = p\left(x_d|\mathrm{RNN}(x_{d-1}, h_{d-1})\right)
+$$<p>where $h_d = \mathrm{RNN}(x_{d-1}, h_{d-1})$, and $h_d$ is a hidden context that acts as a <em>memory</em> that allows learning long-range dependencies. An example of using an RNN is presented in Figure 2.</p>
+<p><img src="sequential_RNN.png" width="500"></p>
+<p><strong>Figure 2.</strong> An example of applying an RNN depending on two last inputs. Inputs are denoted by blue nodes (bottom), intermediate representations are denoted by orange nodes (middle), and output probabilities are denoted by green nodes (top). Notice that compared to the approach with a shared MLP, there is an additional dependency between intermediate nodes $h_d$.</p>
+<p>This approach gives a single parameterization, thus, it is efficient, and also solves the problem of a finite memory. Unfortunately, $\mathrm{RNN}$s suffer from other issues, namely: <em>(i)</em> they are sequential, hence, slow, <em>(ii)</em> if they are badly conditioned (i.e., the eigenvalues of a weight matrix are larger or smaller than $1$, then they suffer from exploding or vanishing gradients, respectively, that hinders learning long-range dependencies.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Long-range memory through Convolutional Nets</strong> In (Collobert &amp; Weston, 2008; Kalchbrenner et al., 2014) it was noticed that convolutional neural networks (CNNs) could be used instead of RNNs to model long-range dependencies. To be more precise, one-dimensional convolutional layers (Conv1D) could be stacked together to process sequential data. The advantages of such an approach are the following: <em>(i)</em> kernels are shared (i.e., an efficient parameterization), and <em>(ii)</em> the processing is done in parallel that greatly speeds up computations. Moreover, by stacking more layers, the effective kernel size grows with the network depth.</p>
+<p>A Conv1D can be applied to calculate embeddings like in (Kalchbrenner et al., 2014), but it cannot be used for autoregressive models. Why? Because we need convolutions to be <strong>causal</strong> (Bai et al., 2018). <em>Causal</em> in this context means that a Conv1D layer is dependent on the last $k$ inputs but the current one (option A) or with the current one (option B). Option A is required in the first layer because the final output (i.e., the probabilities $\theta_d$) cannot be dependent on $x_d$. Additionally, if we want to increase the effective kernel size, we can use <em>dilation</em> larger than 1.</p>
+<p>In Figure 3 we present an example of a neural network consisting of 3 causal Conv1D layers. The first CausalConv1D is of type A, i.e., it does not take into account only the last $k$ inputs without the current one. Then, in the next two layers, we use CausalConv1D (option B) with dilation 2 and 3. Typically, the dilation values are 1, 2, 4, 8 (v.d. Oord et al., 2016a), however, taking 2 and 4 would not nicely fit in a figure. We highlight in red all connections that go from the output layer to the input layer. As we can notice, stacking CausalConv1D layers with the dilation larger than 1 allows us to learn long-range dependencies (in this example, by looking at 7 last inputs).</p>
+<p><img src="sequential_CNN.png" width="500"></p>
+<p><strong>Figure 3.</strong> An example of applying causal convolutions. The kernel size is 2, but by applying dilation in higher layers, a much larger input could be processed (red edges), thus, a larger memory is utilized. Notice that the first layers must be option A to ensure proper processing.</p>
+<p>The CausalConv1D layers are better-suited to modeling sequential data than RNNs. They obtain not only better results (e.g., classification accuracy), but also allow learning long-range dependencies better than RNNs (Bai et al., 2018). Moreover, they do not suffer from exploding/vanishing gradient issues. As a result, they seem to be a perfect parameterization for autoregressive models! Their supremacy has been proven in many cases, including audio processing by WaveNet, a neural network consisting of CausalConv1D layers (v.d. Oord et al., 2016a), or image processing by PixelCNN, a model with CausalConv2D components (v.d. Oord et al., 2016b).</p>
+<p>Then, is there any drawback of applying autoregressive models parameterized by causal convolutions? Unfortunately, yes, there is and it is connected with sampling. If we want to evaluate probabilities for given inputs, we need to calculate the forward pass where all calculations are done in parallel. However, if we want to sample new objects, we must iterate through all positions (think of a big for-loop, from the first variable to the last one), and iteratively predict probabilities and sample new values. Since we use convolutions to parameterize the model, we must do $D$ full forward passes to get the final sample. That's a big waste, but, unfortunately, that's the price we must pay for all "goodies" following from the convolutional-based parameterization of the ARM. Fortunately, there is on-going research on speeding up computations, e.g., see (Wiggers &amp; Hoogeboom, 2020).</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Deep-Generative-Autoregressive-Model-in-action!">Deep Generative Autoregressive Model in action!<a class="anchor-link" href="#Deep-Generative-Autoregressive-Model-in-action!">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Alright, let us talk more about details and how to implement an ARM. First, we focus on images, e.g., $\mathbf{x} \in \{0, 1, \ldots, 15\}^{64}$. Since images are represented by integers, we will use the categorical distribution to represent them (in one of future blogpost, we will comment on the choice of distribution for images in more detail). We model $p(\mathbf{x})$ using an ARM parameterized by CausalConv1D layers. As a result, each conditional is the following:</p>
+\begin{align}
+p(x_{d} | \mathbf{x}_{&lt;d}) &amp;= \mathrm{Categorical}\left(x_{d}|\theta_{d}\left(\mathbf{x}_{&lt;d}\right)\right) \\
+&amp;= \prod_{l=1}^{L} \left( \theta_{d,l} \right)^{[x_{d} = l]}
+\end{align}<p>where $[a = b]$ is the Iverson bracket (i.e., $[a = b] = 1$ if $a = b$, and $[a = b] = 0$ if $a \neq b$), $\theta_d\left(\mathbf{x}_{&lt;d}\right) \in [0,1]^{16}$ is the output of the CausalConv1D-based neural network with the softmax in the last layer, so $\sum_{l=1}^{L} \theta_{d,l} = 1$. To be very clear, the last layer must have $16$ output channels (because there are 16 possible values per pixel), and the softmax is take over these $16$ values. We stack CausalConv1D layers with non-linear activation functions in between (e.g., LeakyRELU). Of course, we must remember about taking the option A CausalConv1D as the first layer! Otherwise we break the assumption about taking into account $x_d$ in predicting $\theta_d$.</p>
+<p>What about the objective function? ARMs are the likelihood-based models, so for given $N$ i.i.d. datapoints $\mathcal{D} = \{\mathbf{x}_{1}, \ldots , \mathbf{x}_{N}\}$, we aim at maximizing the logarithm of the likelihood function, that is (we will use the product and sum rules again):</p>
+\begin{align}
+\ln p(\mathcal{D}) &amp;= \ln \prod_{n} p(\mathbf{x}_{n}) \\
+&amp;= \sum_{n} \ln p(\mathbf{x}_{n}) \\
+&amp;= \sum_{n} \ln \prod_{d} p(x_{n,d}|\mathbf{x}_{n,&lt;d}) \\
+&amp;= \sum_{n} \left( \sum_{d} \ln p(x_{n,d}|\mathbf{x}_{n,&lt;d}) \right) \\
+&amp;= \sum_{n} \left( \sum_{d} \ln \mathrm{Categorical}\left(x_{d}|\theta_{d}\left(\mathbf{x}_{&lt;d}\right)\right) \right) \\
+&amp;= \sum_{n} \left( \sum_{d} \left(\sum_{l=1}^{L} {[x_{d} = l]} \ln \theta_{d}\left(\mathbf{x}_{&lt;d}\right) \right) \right)
+\end{align}<p>For simplicity, we assumed that $\mathbf{x}_{&lt;1} = \emptyset$, i.e., no conditioning. As we can notice, the objective function takes a very nice form! First, the logarithm over the i.i.d. data $\mathcal{D}$ results in a sum over data points of the logarithm of individual distributions $p(\mathbf{x}_{n})$. Second, applying the product rule, together with the logarithm, results in another sum, this time over dimensions. Eventually, by parameterizing the conditionals by CausalConv1D, we can calculate all $\theta_d$ in one forward pass, and then see check the pixel value (see the last line of $\ln p(\mathcal{D})$). Ideally, we want $\theta_{d,l}$ to be as close to $1$ if $x_d = l$.</p>
+<p>Uff... Alright, let's take a look at some code. Remember, we need to define CausalConv1D first, and then we can use it to build our own ARM! The full code is available under the following <a href="https://github.com/jmtomczak/intro_dgm" target="_blank">[link]</a>. Here, we focus only on the code for the model. We provide details in the comments.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt"></div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">CausalConv1d</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A causal 1D convolution.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">in_channels</span><span class="p">,</span> <span class="n">out_channels</span><span class="p">,</span> <span class="n">kernel_size</span><span class="p">,</span> <span class="n">dilation</span><span class="p">,</span> <span class="n">A</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">CausalConv1d</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        
+        <span class="c1"># The general idea is the following: We take the build-in PyTorch Conv1D. </span>
+        <span class="c1"># Then, we must pick a proper padding, because we must ensure the convolutional is causal.</span>
+        <span class="c1"># Eventually, we must remove some final elements of the output, because we simply don&#39;t need them! </span>
+        
+        <span class="c1"># Since CausalConv1D is still a convolution, we must define the kernel size, dilation and whether it is</span>
+        <span class="c1"># option A (A=True) or option B (A=False). Remember that by playing with dilation we can enlarge</span>
+        <span class="c1"># the size of the memory.</span>
+        
+        <span class="c1"># attributes:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kernel_size</span> <span class="o">=</span> <span class="n">kernel_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dilation</span> <span class="o">=</span> <span class="n">dilation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span> <span class="o">=</span> <span class="n">A</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">padding</span> <span class="o">=</span> <span class="p">(</span><span class="n">kernel_size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">dilation</span> <span class="o">+</span> <span class="n">A</span> <span class="o">*</span> <span class="mi">1</span>
+
+        <span class="c1"># module:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conv1d</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Conv1d</span><span class="p">(</span><span class="n">in_channels</span><span class="p">,</span> <span class="n">out_channels</span><span class="p">,</span>
+                                      <span class="n">kernel_size</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                                      <span class="n">padding</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="c1">#notice we will do padding by ourself in the forward pass!</span>
+                                      <span class="n">dilation</span><span class="o">=</span><span class="n">dilation</span><span class="p">,</span>
+                                      <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="c1"># We do padding only from the left! This is more efficient implementation.</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">functional</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">padding</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+        <span class="n">conv1d_out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">conv1d</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">:</span>
+            <span class="c1"># Remember, we cannot be dependent on the current component, therefore, the last element is removed.</span>
+            <span class="k">return</span> <span class="n">conv1d_out</span><span class="p">[:,</span> <span class="p">:,</span> <span class="p">:</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">conv1d_out</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt"></div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">ARM</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">net</span><span class="p">,</span> <span class="n">D</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">num_vals</span><span class="o">=</span><span class="mi">256</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ARM</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        
+        <span class="c1"># Remember, always credit the author, even if it&#39;s you ;)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;ARM by JT.&#39;</span><span class="p">)</span>
+        
+        <span class="c1"># This is a definition of a network. See the next cell.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">net</span> <span class="o">=</span> <span class="n">net</span>
+        <span class="c1"># This is how many values a pixel can take.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_vals</span> <span class="o">=</span> <span class="n">num_vals</span>
+        <span class="c1"># This is the problem dimentionality (the number of pixels)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">D</span> <span class="o">=</span> <span class="n">D</span>
+    
+    <span class="c1"># This function calculates the arm output.</span>
+    <span class="k">def</span> <span class="nf">f</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="c1"># First, we apply causal convolutions.</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">net</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+        <span class="c1"># In channels, we have the number of values. Therefore, we change the order of dims.</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="n">h</span><span class="o">.</span><span class="n">permute</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="c1"># We apply softmax to calculate probabilities.</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">p</span>
+        
+    <span class="c1"># The forward pass calculates the log-probability of an image.</span>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="s1">&#39;avg&#39;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">reduction</span> <span class="o">==</span> <span class="s1">&#39;avg&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="o">-</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">log_prob</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span>
+        <span class="k">elif</span> <span class="n">reduction</span> <span class="o">==</span> <span class="s1">&#39;sum&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="o">-</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">log_prob</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;reduction could be either `avg` or `sum`.&#39;</span><span class="p">)</span>
+    
+    <span class="c1"># This function calculates the log-probability (log-categorical). </span>
+    <span class="c1"># See the full code in the separate file for details.</span>
+    <span class="k">def</span> <span class="nf">log_prob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">mu_d</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">log_p</span> <span class="o">=</span> <span class="n">log_categorical</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">mu_d</span><span class="p">,</span> <span class="n">num_classes</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">num_vals</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="s1">&#39;sum&#39;</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="n">log_p</span>
+    
+    <span class="c1"># This function implements sampling procedure. </span>
+    <span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">):</span>
+        <span class="c1"># As you can notice, we first initilize a tensor with zeros.</span>
+        <span class="n">x_new</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">batch_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">))</span>
+        
+        <span class="c1"># Then, iteratively, we sample a value for a pixel.</span>
+        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">):</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">(</span><span class="n">x_new</span><span class="p">)</span>
+            <span class="n">x_new_d</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">multinomial</span><span class="p">(</span><span class="n">p</span><span class="p">[:,</span> <span class="n">d</span><span class="p">,</span> <span class="p">:],</span> <span class="n">num_samples</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">x_new</span><span class="p">[:,</span> <span class="n">d</span><span class="p">]</span> <span class="o">=</span> <span class="n">x_new_d</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">x_new</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="c1"># An exemple of a network. NOTICE: The first layer is A=True, while all the other are A=False.</span>
+<span class="c1"># At this point we should know already why :)</span>
+<span class="n">M</span> <span class="o">=</span> <span class="mi">256</span>
+
+<span class="n">net</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span>
+    <span class="n">CausalConv1d</span><span class="p">(</span><span class="n">in_channels</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">out_channels</span><span class="o">=</span><span class="n">MM</span><span class="p">,</span> <span class="n">dilation</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">kernel_size</span><span class="o">=</span><span class="n">kernel</span><span class="p">,</span> <span class="n">A</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">LeakyReLU</span><span class="p">(),</span>
+    <span class="n">CausalConv1d</span><span class="p">(</span><span class="n">in_channels</span><span class="o">=</span><span class="n">MM</span><span class="p">,</span> <span class="n">out_channels</span><span class="o">=</span><span class="n">MM</span><span class="p">,</span> <span class="n">dilation</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">kernel_size</span><span class="o">=</span><span class="n">kernel</span><span class="p">,</span> <span class="n">A</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">LeakyReLU</span><span class="p">(),</span>
+    <span class="n">CausalConv1d</span><span class="p">(</span><span class="n">in_channels</span><span class="o">=</span><span class="n">MM</span><span class="p">,</span> <span class="n">out_channels</span><span class="o">=</span><span class="n">MM</span><span class="p">,</span> <span class="n">dilation</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">kernel_size</span><span class="o">=</span><span class="n">kernel</span><span class="p">,</span> <span class="n">A</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">LeakyReLU</span><span class="p">(),</span>
+    <span class="n">CausalConv1d</span><span class="p">(</span><span class="n">in_channels</span><span class="o">=</span><span class="n">MM</span><span class="p">,</span> <span class="n">out_channels</span><span class="o">=</span><span class="n">num_vals</span><span class="p">,</span> <span class="n">dilation</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">kernel_size</span><span class="o">=</span><span class="n">kernel</span><span class="p">,</span> <span class="n">A</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Perfect! Nowe we are ready to run the full code (take a look at: <a href="https://github.com/jmtomczak/intro_dgm" target="_blank">[link]</a>). After training our ARM, we should obtain results similar to the following:</p>
+<p><strong>A</strong> <img src="arm_real_images.png" width="200"> 
+<strong>B</strong> <img src="arm_generated_images.png" width="200">
+<strong>C</strong> <img src="arm_nll_val_curve.png" width="300">
+<strong>Figure 3.</strong> Examples of outcomes of the training:
+<strong>A</strong> Randomly selected real images.
+<strong>B</strong> Unconditional generations from the ARM.
+<strong>C</strong> The validation curve during training.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Is-it-all?-No!">Is it all? No!<a class="anchor-link" href="#Is-it-all?-No!">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>First of all, we discussed one-dimensional causal convolutions that are typically insufficient for modeling images due to their spatial dependencies in 2D (or 3D if we consider more than 1 channel; for simplicity, we focus on a 2D case). In (v.d. Oord et al., 2016b), a CausalConv2D was proposed. The idea is similar to that discussed so far but now we need to ensure that the kernel will not look into future pixels in both the x-axis and y-axis. In Figure 4, we present the difference between a standard kernel where all kernel weights are used and a masked kernel with some weights zeroed-out (or masked). Notice that in CausalConv2D we must also use option A for the first layer (i.e., we skip the pixel in the middle) and we can pick option B for the remaining layers.</p>
+<p><img src="pixelcnn_masking.png" width="500"></p>
+<p><strong>Figure 4.</strong> An example of a masked 3x3 kernel (i.e., a causal 2D kernel): (<em>left</em>) A difference between a standard kernel (all weights are used; denoted by green), and a masked kernel (some weights are masked, i.e., not used; in red). For the masked kernel, we denoted the node (pixel) in the middle in violet, because it is either masked (option A) or not (option B). (<em>middle</em>) An example of an image (light orange nodes: zeros, light blue nodes: ones) and a masked kernel (option A). (<em>right</em>) The result of applying the masked kernel to the image (with padding equal 1).</p>
+<p>In Figure 5, we present the same example as in Figure 4 but using numeric values.</p>
+<p><img src="pixelcnn_masking_numeric.png" width="500"></p>
+<p><strong>Figure 5.</strong> The same example as in Figure 4 but with numeric values.</p>
+<p>In (v.d. Oord et al., 2016c), the authors proposed a further improvement on the causal convolutions. The main idea relies on creating a block that consits of vertical and horizontal convolutional layers. Moreover, they used gated non-linearity function, namely, $\mathbf{h} = \mathrm{tanh}(\mathbf{W}\mathbf{x}) \odot \sigma(\mathbf{V}\mathbf{x}) $. See Figure 2 in (v.d. Oord et al., 2016c) for details.</p>
+<p>Another very important paper is (Salimans et al., 2017). Therein, the authors proposed to replace the categorical distribution used for modeling pixel values with a discretized logistic. Moreover, they suggested to use a mixture of discretize logistic distributions to further increase flexibility of their ARM.</p>
+<p>The introduction of the causal convolution opened multiple opportunities for deep generative modeling and allowed obtaining state-of-the-art generations and density estimations. It is impossible to review all papers here, we just name a few interesting directions/applications that are worth remembering:</p>
+<ul>
+<li>ARMs could be used as stand-alone models or they can be used in a combination with other approaches. For instance, they can be used for modeling a prior in the (Variational) Auto-Encoders (Habibian et al., 2019).</li>
+<li>A possible drawback of ARMs is a lack of latent representation because all conditionals are modeled explicitly from data. To overcome this issue, (Gulrajani et al., 2016) proposed to use a PixelCNN-based decoder in a Variational Auto-Encoder.</li>
+<li>An interesting and important research direction is about proposing new architectures/components of ARMs or speeding them up. As mentioned earlier, sampling from ARMs could be slow but there are ideas to improve on that by predictive sampling (Wiggers &amp; Hoogeboom, 2020).</li>
+</ul>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="References">References<a class="anchor-link" href="#References">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>(Bai et al., 2018) Bai, S., Kolter, J. Z., &amp; Koltun, V. (2018). An empirical evaluation of generic convolutional and recurrent networks for sequence modeling. arXiv preprint arXiv:1803.01271.</p>
+<p>(Chung et al., 2014) Chung, J., Gulcehre, C., Cho, K., &amp; Bengio, Y. (2014). Empirical evaluation of gated recurrent neural networks on sequence modeling. arXiv preprint arXiv:1412.3555.</p>
+<p>(Collobert &amp; Weston, 2008) Collobert, R., &amp; Weston, J. (2008, July). A unified architecture for natural language processing: Deep neural networks with multitask learning. International Conference on Machine learning, 160-167.</p>
+<p>(Gulrajani et al., 2016) Gulrajani, I., Kumar, K., Ahmed, F., Taiga, A. A., Visin, F., Vazquez, D., &amp; Courville, A. (2016). Pixelvae: A latent variable model for natural images. arXiv preprint arXiv:1611.05013.</p>
+<p>(Habibian et al., 2019) Habibian, A., Rozendaal, T. V., Tomczak, J. M., &amp; Cohen, T. S. (2019). Video compression with rate-distortion autoencoders. In Proceedings of the IEEE International Conference on Computer Vision (pp. 7033-7042).</p>
+<p>(Hochreiter &amp; Schmidhuber, 1997) Hochreiter, S., &amp; Schmidhuber, J. (1997). Long short-term memory. Neural computation, 9(8), 1735-1780.</p>
+<p>(Kalchbrenner et al., 2014) Kalchbrenner, N., Grefenstette, E., &amp; Blunsom, P. (2014). A Convolutional Neural Network for Modelling Sentences. In Proceedings of the 52nd Annual Meeting of the Association for Computational Linguistics, 655-665.</p>
+<p>(Salimans et al., 2017) Salimans, T., Karpathy, A., Chen, X., &amp; Kingma, D. P. (2017). Pixelcnn++: Improving the pixelcnn with discretized logistic mixture likelihood and other modifications. arXiv preprint arXiv:1701.05517.</p>
+<p>(Sitzmann et al., 2020) Sitzmann, V., Martel, J., Bergman, A., Lindell, D., &amp; Wetzstein, G. (2020). Implicit neural representations with periodic activation functions. Advances in Neural Information Processing Systems, 33.</p>
+<p>(Sutskever et al., 2011) Sutskever, I., Martens, J., &amp; Hinton, G. (2011). Generating text with recurrent neural networks. International Conference on Machine Learning, pp. 1017-1024.</p>
+<p>(v.d. Oord et al., 2016a) van den Oord, Aaron, Sander Dieleman, Heiga Zen, Karen Simonyan, Oriol Vinyals, Alex Graves, Nal Kalchbrenner, Andrew Senior, and Koray Kavukcuoglu. "Wavenet: A generative model for raw audio." arXiv preprint arXiv:1609.03499 (2016).</p>
+<p>(v.d. Oord et al., 2016b) van Den Oord, Aaron, Nal Kalchbrenner, and Koray Kavukcuoglu. "Pixel recurrent neural networks." In Proceedings of the 33rd International Conference on International Conference on Machine Learning-Volume 48, pp. 1747-1756. (2016).</p>
+<p>(v.d. Oord et al., 2016c) Van den Oord, A., Kalchbrenner, N., Espeholt, L., Vinyals, O., &amp; Graves, A. (2016). Conditional image generation with pixelcnn decoders. Advances in neural information processing systems, 29, 4790-4798.</p>
+<p>(Wiggers &amp; Hoogeboom, 2020) Wiggers, A. J., &amp; Hoogeboom, E. (2020). Predictive Sampling with Forecasting Autoregressive Models. arXiv preprint arXiv:2002.09928.</p>
+
+</div>
+</div>
+</div>
+    </div>
+  </div>
+</body>
+
+ 
+
+
+</html>

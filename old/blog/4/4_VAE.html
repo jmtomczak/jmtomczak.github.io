@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" />
+
+<title>4_VAE</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+
+<!-- MUST INCLUDE TO PROPERLY ADD HEADER! -->
+<link rel="stylesheet" type="text/css" media="screen" href="../../css/main.css" />
+<link rel="stylesheet" type="text/css" media="screen" href="../blog.css" />
+
+<!-- Loading mathjax macro -->
+<!-- Load mathjax -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_HTML"></script>
+    <!-- MathJax configuration -->
+    <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+        tex2jax: {
+            inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+            displayMath: [ ['$$','$$'], ["\\[","\\]"] ],
+            processEscapes: true,
+            processEnvironments: true
+        },
+        // Center justify equations in code and markdown cells. Elsewhere
+        // we use CSS to left justify single line equations in code cells.
+        displayAlign: 'center',
+        "HTML-CSS": {
+            styles: {'.MathJax_Display': {"margin": 0}},
+            linebreaks: { automatic: true }
+        }
+    });
+    </script>
+    <!-- End of mathjax configuration --></head>
+<body>
+  <div tabindex="-1" id="notebook" class="border-box-sizing">
+    <div class="container" id="notebook-container">
+
+<div id="header">
+  <ul>
+    <li><a href="../../index.html"><span>Home</span></a></li>
+    <li><a href="../../presentations.html"><span>Presentations</span></a></li>
+    <li><a href="../../deebmed.html"><span>DeeBMED</span></a></li>
+	<li><a href="../../people.html"><span>People</span></a></li>
+	<li><a href="../../blog.html"><span>BLOG</span></a></li>
+  </ul>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Introduction">Introduction<a class="anchor-link" href="#Introduction">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>In the previous blog posts, we discussed two approaches to learning $p(\mathbf{x})$: autoregressive models (ARMs) and flow-based models (or flows for short). Both ARMs and flows model the likelihood function directly, that is, either by factorizing the distribution and parameterizing conditional distributions $p(x_{d}|\mathbf{x}_{&lt;d})$ as in ARMs, or by utilizing invertible transformations (neural networks) for the change of variables formula as in flows. Now, we will discuss a third approach that introduces <strong>latent variables</strong>.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Let us briefly discuss the following scenario. We have a collection of images with horses. We want to learn $p(\mathbf{x})$ for, e.g., generating new images. Before we do that, we can ask ourselves how we should generate a horse, or, in other words, if we were such a generative model, how we would do that. Maybe we would first sketch the general silhouette of a horse, its size and shape, then add hooves, fill in details of a head, color it, etc. In the end, we may consider the background. In general, we can say that there are some <em>factors</em> in data (e.g., a silhouette, a color, a background) that are crucial for generating an object (here, a horse). Once we decide about these factors, we can generate them by adding details. I don't want to delve into a philosophical/cognitive discourse, but I hope that we all agree that when we paint something, this is more-or-less our procedure of generating a painting.</p>
+<p>We use now mathematics to express that <em>generative process</em>. Namely, we have our high-dimensional objects of interest, $\mathbf{x} \in \mathcal{X}^{D}$ (e.g., for images, $\mathcal{X} \in \{0, 1, \ldots, 255\}$), and a <strong>low-dimensional latent variables</strong>, $\mathbf{z} \in \mathcal{Z}^{M}$ (e.g., $\mathcal{Z} = \mathbb{R}$), that we can call hidden factors in data. In mathematical words, we can refer to $\mathcal{Z}^{M}$ as a low-dimensional <em>manifold</em>. Then, the <strong>generative process</strong> could be expressed as follows:</p>
+<ol>
+<li>$\mathbf{z} \sim p(\mathbf{z})$ (Figure 1, in red);</li>
+<li>$\mathbf{x} \sim p(\mathbf{x} | \mathbf{z})$ (Figure 1, in blue).</li>
+</ol>
+<p>In plain words, we first sample $\mathbf{z}$ (e.g., we imagine the size, the shape, and the color of my horse), and then create an image with all necessary details, i.e., we sample $\mathbf{x}$ from the conditional distribution $p(\mathbf{x} | \mathbf{z})$. One can ask whether we need probabilities here, but try to create <em>precisely the same</em> image at least two times. Due to many various external factors, it's almost impossible. That's why probability theory is so beautiful and allows us to describe reality!</p>
+<p><img src="lvm_diagram.png" width="500"></p>
+<p><strong>Figure 1.</strong> A diagram presenting a latent variable model and a generative process. Notice the low-dimensional manifold (here 2D) embedded in the high-dimensional space (here 3D).</p>
+<p>The idea behind <strong>latent variable models</strong> is that we introduce the latent variables $\mathbf{z}$ and the joint distribution is factorized as follows: $p(\mathbf{x}, \mathbf{z}) = p(\mathbf{x} | \mathbf{z}) p(\mathbf{z})$. This naturally expressed the generative process described above. However, for training, we have access only to $\mathbf{x}$. Therefore, according to probabilistic inference, we should <strong>sum out</strong> (or <strong>marginalize out</strong>) the unknown, namely, $\mathbf{z}$. As a result, the (marginal) likelihood function is the following:</p>
+$$
+p(\mathbf{x}) = \int p(\mathbf{x} | \mathbf{z}) p(\mathbf{z})\ \mathrm{d} \mathbf{z} .
+$$<p>A natural question now is how to calculate this integral. In general, it is a difficult task. There are two possible directions. First, the integral <strong>is</strong> tractable. We will briefly discuss it before we jump into the second approach that utilizes a specific <strong>approximate inference</strong>, namely, <strong>variational inference</strong>.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Probabilistic-PCA-(pPCA):-A-Linear-Gaussian-Latent-Variable-Model">Probabilistic PCA (pPCA): A Linear Gaussian Latent Variable Model<a class="anchor-link" href="#Probabilistic-PCA-(pPCA):-A-Linear-Gaussian-Latent-Variable-Model">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Let us discuss the following situation:</p>
+<ul>
+<li>We consider continuous random variables only, i.e., $\mathbf{z} \in \mathbb{R}^{M}$ and $\mathbf{x} \in \mathbb{R}^{D}$.</li>
+<li>The distrubution of $\mathbf{z}$ is the standard Gaussian, i.e., $p(\mathbf{z}) = \mathcal{N}\left(\mathbf{z}|0, \mathbf{I}\right)$.</li>
+<li>The dependency between $\mathbf{z}$ and $\mathbf{x}$ is linear and we assume a Gaussian additive noise:</li>
+</ul>
+$$
+\mathbf{x} = \mathbf{W} \mathbf{z} + \mathbf{b} + \varepsilon,
+$$<p>where $\varepsilon \sim \mathcal{N}(\varepsilon|0, \sigma^{2}\mathbf{I})$. The propery of the Gaussian distribution yields:</p>
+$$
+p(\mathbf{x} | \mathbf{z}) = \mathcal{N}\left(\mathbf{x}|\mathbf{W} \mathbf{z} + \mathbf{b}, \sigma^{2} \mathbf{I}\right) .
+$$<p>This model is known as the <strong>probabilistic PCA</strong> (pPCA) (Tipping &amp; Bishop, 1999).</p>
+<p>Then, we can take advantage of properties of a linear combination of two vectors of normally-distributed random variables to calculate the integral explicitely (Bishop, 2006):
+\begin{align}
+p(\mathbf{x}) &amp;= \int p(\mathbf{x} | \mathbf{z})\ p(\mathbf{z})\ \mathrm{d} \mathbf{z} \\
+&amp;= \int \mathcal{N}\left(\mathbf{x}|\mathbf{W} \mathbf{z} + \mathbf{b}, \sigma \mathbf{I}\right) \mathcal{N}\left(\mathbf{z}|0, \mathbf{I}\right)\ \mathrm{d} \mathbf{z} \\
+&amp;= \mathcal{N}\left(\mathbf{x}|\mathbf{b},  \mathbf{W} \mathbf{W}^{\top} + \sigma^2 \mathbf{I}\right) .
+\end{align}</p>
+<p>Now, we can calculate the logarithm of the (marginal) likelihood function $\ln p(\mathbf{x})$! We refer to (Tipping &amp; Bishop, 1999; Bishop, 2006) for more details on learning the paramters in the pPCA model. Moreover, what is interesting about the pPCA is that, due to properties of Gaussians, we can also calculate the <em>true</em> posterior over $\mathbf{z}$:</p>
+$$
+p(\mathbf{z}|\mathbf{x}) = \mathcal{N}\left(\mathbf{M}^{-1} \mathbf{W}^{\top} (\mathbf{x} - \mu), \sigma^{-2}\mathbf{M} \right)
+$$<p>where: $\mathbf{M} = \mathbf{W}^{\top} \mathbf{W} + \sigma^2 \mathbf{I}$. Once we find $\mathbf{W}$ that maxime the log-likelihood finction, and the dimensionality of the matrix $\mathbf{W}$ is computationally tractable, we can calculate $p(\mathbf{z}|\mathbf{x})$. This is a big thing! Why? Because for a given observation $\mathbf{x}$, we can calculate the distribution over the <strong>latent factors</strong>!</p>
+<p>In my opinion, the probabilistic PCA is an extremely important latent variable model for two reasons. First, we can calculate everything <em>by hand</em>, thus, it is a great exercise to develop an intuition about the latent variable models. Second, it is a linear model, therefore, a curious reader should feel tingling in her head already and ask herself the following questions: What would happen if we take non-linear dependencies? And what would happen if we use other distributions than Gaussians? In both cases, the answer is the same: We wouldn't be able to calculate the integral exactly, and some sort of approximation would be necessary. Anyhow, pPCA is a model that everyone interested in latent variable models should study in depth to create an intuition about probabilistic modeling.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Variational-Auto-Encoders:--Variational-Inference-for-Non-linear-Latent-Variable-Models">Variational Auto-Encoders:  Variational Inference for Non-linear Latent Variable Models<a class="anchor-link" href="#Variational-Auto-Encoders:--Variational-Inference-for-Non-linear-Latent-Variable-Models">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>The model and the objective</strong> Let us take a look at the integral one more time and think of a general case where we cannot calculate the integral exactly. The simplest approach would be to use the Monte Carlo approximation:</p>
+\begin{align}
+p(\mathbf{x}) &amp;= \int p(\mathbf{x} | \mathbf{z})\ p(\mathbf{z})\ \mathrm{d} \mathbf{z} \\
+&amp;= \mathbb{E}_{\mathbf{z}\sim p(\mathbf{z})} \left[ p(\mathbf{x} | \mathbf{z}) \right] \\
+&amp;\approx \frac{1}{K} \sum_{k} p(\mathbf{x} | \mathbf{z}_{k}) 
+\end{align}<p>where, in the last line, we use samples from the prior over latents, $\mathbf{z}_{k} \sim p(\mathbf{z})$. Such an approach is relatively easy and since our computational power grows so fast, we can sample a lot of points in reasonably short time. However, as we know from statistics, if $\mathbf{z}$ is multidimensional, and $M$ is relatively large, we get into a trap of the <em>curse of dimensionality</em>, and to cover the space properly, the number of samples grows exponentially with respect to $M$. If we take too few samples, then the approximation is simply very poor.</p>
+<p>We can use more advanced Monte Carlo techniques (Andrieu, 2003), however, they still suffer from issues associated with the curse of dimensionality. An alternative approach is the application of <strong>variational inference</strong> (Jordan et al., 1999). Let us consider a family of variational distributions parameterized by $\phi$, $\{q_{\phi}(\mathbf{z})\}_{\phi}$. For instance, we can consider Gaussians with means ans variances, $\phi = \{\mu, \sigma^{2}\}$. We know the form of these distributions, and we assume that they assign non-zero probability mass to all $\mathbf{z} \in \mathcal{Z}^{M}$. Then, the logarithm of the marginal distribution could be approximated as follows:</p>
+\begin{align}
+\ln p(\mathbf{x}) &amp;= \ln \int p(\mathbf{x} | \mathbf{z}) p(\mathbf{z})\ \mathrm{d} \mathbf{z} \\
+&amp;= \ln \int \frac{q_{\phi}(\mathbf{z})}{q_{\phi}(\mathbf{z})} p(\mathbf{x} | \mathbf{z}) p(\mathbf{z})\ \mathrm{d} \mathbf{z} \\
+&amp;= \ln \mathbb{E}_{\mathbf{z}\sim q_{\phi}(\mathbf{z})} \left[ \frac{p(\mathbf{x} | \mathbf{z}) p(\mathbf{z})}{q_{\phi}(\mathbf{z}) } \right] \\
+&amp;\geq \mathbb{E}_{\mathbf{z}\sim q_{\phi}(\mathbf{z})} \ln \left[ \frac{p(\mathbf{x} | \mathbf{z}) p(\mathbf{z})}{q_{\phi}(\mathbf{z}) } \right] \\
+&amp;= \mathbb{E}_{\mathbf{z}\sim q_{\phi}(\mathbf{z})} \left[ \ln p(\mathbf{x} | \mathbf{z}) + \ln p(\mathbf{z}) - \ln q_{\phi}(\mathbf{z}) \right] \\
+&amp;= \mathbb{E}_{\mathbf{z}\sim q_{\phi}(\mathbf{z})} \left[ \ln p(\mathbf{x} | \mathbf{z}) \right] - \mathbb{E}_{\mathbf{z}\sim q_{\phi}(\mathbf{z})} \left[ \ln q_{\phi}(\mathbf{z}) -  \ln p(\mathbf{z}) \right] .
+\end{align}<p>In the fourth line we used <strong>Jensen's inequality</strong>.</p>
+<p>If we consider an <strong>amortized variational posterior</strong>, namely, $q_{\phi}(\mathbf{z} | \mathbf{x})$ instead of $q_{\phi}(\mathbf{z})$ for each $\mathbf{x}$, then we get:</p>
+$$
+\ln p(\mathbf{x}) \geq \mathbb{E}_{\mathbf{z}\sim q_{\phi}(\mathbf{z} | \mathbf{x})} \left[ \ln p(\mathbf{x} | \mathbf{z}) \right] - \mathbb{E}_{\mathbf{z}\sim q_{\phi}(\mathbf{z}|\mathbf{x})} \left[ \ln q_{\phi}(\mathbf{z} | \mathbf{x}) -  \ln p(\mathbf{z}) \right] .
+$$<p>Amortization could be extremely useful, because we train a single model (e.g., a neural network with some weights), and it returns parameters of a distribution for given input. From now on, we will assume that we use amortized variational posteriors, however, please remember that we don't need to do that! Please take a look at (Kim et al., 2018) where a semi-amortized variational inference is considered.</p>
+<p>As a result, we obtain an auto-encoder-like model, with a stochastic encoder, $q_{\phi}(\mathbf{z} | \mathbf{x})$, and a stochastic decoder, $p(\mathbf{x} | \mathbf{z})$. We use <em>stochastic</em> to highlight that the encoder and the decoder are probability distributions, and to stress out a difference with a deterministic auto-encoder. Ths model, with the amortized variational posterior, is called a <strong>Variational Auto-Encoder</strong> (Kingma &amp; Welling, 2013; Rezende et al., 2014). The lower-bound of the log-likelihood function is called the Evidence LOwer Bound (<strong>ELBO</strong>).</p>
+<p>The first part of the ELBO, $\mathbb{E}_{\mathbf{z}\sim q_{\phi}(\mathbf{z} | \mathbf{x})} \left[ \ln p(\mathbf{x} | \mathbf{z}) \right]$, is referred to as the (negative) <strong>reconstruction error</strong>, because $\mathbf{x}$ is encoded to $\mathbf{z}$ and then decoded back. The second part of the ELBO, $\mathbb{E}_{\mathbf{z}\sim q_{\phi}(\mathbf{z}|\mathbf{x})} \left[ \ln q_{\phi}(\mathbf{z} | \mathbf{x}) -  \ln p(\mathbf{z}) \right]$, could be seen as a <strong>regularizer</strong> and it coincides with the Kullback-Leibler divergence (KL). Please keep in mind that for a more complex models (e.g., hierarchical models), the regularizer(s) may not be interpreted as the KL term. Therefore, we prefer to use the term <em>the regularizer</em> because it is more general.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>A different perspective on the ELBO</strong> For completness, we provide also a different deriviation of the ELBO that will help us to understand why the lower bound might be tricky sometimes:</p>
+\begin{align}
+\ln p(\mathbf{x}) &amp;= \mathbb{E}_{\mathbf{z} \sim q_{\phi}(\mathbf{z}|\mathbf{x})} \left[ \ln p(\mathbf{x}) \right] \\
+&amp;= \mathbb{E}_{\mathbf{z} \sim q_{\phi}(\mathbf{z}|\mathbf{x})} \left[ \ln \frac{p(\mathbf{z}|\mathbf{x}) p(\mathbf{x})}{p(\mathbf{z}|\mathbf{x})} \right] \\
+&amp;= \mathbb{E}_{\mathbf{z} \sim q_{\phi}(\mathbf{z}|\mathbf{x})} \left[ \ln \frac{p(\mathbf{x}|\mathbf{z}) p(\mathbf{z})}{p(\mathbf{z}|\mathbf{x})} \right] \\
+&amp;= \mathbb{E}_{\mathbf{z} \sim q_{\phi}(\mathbf{z}|\mathbf{x})} \left[ \ln \frac{p(\mathbf{x}|\mathbf{z}) p(\mathbf{z})}{p(\mathbf{z}|\mathbf{x})} \frac{q_{\phi}(\mathbf{z}|\mathbf{x})}{q_{\phi}(\mathbf{z}|\mathbf{x})}\right] \\
+&amp;= \mathbb{E}_{\mathbf{z} \sim q_{\phi}(\mathbf{z}|\mathbf{x})} \left[ \ln p(\mathbf{x}|\mathbf{z}) \frac{p(\mathbf{z})}{q_{\phi}(\mathbf{z}|\mathbf{x})}  \frac{q_{\phi}(\mathbf{z}|\mathbf{x})}{p(\mathbf{z}|\mathbf{x})} \right] \\
+&amp;= \mathbb{E}_{\mathbf{z} \sim q_{\phi}(\mathbf{z}|\mathbf{x})} \left[ \ln p(\mathbf{x}|\mathbf{z}) - \ln \frac{q_{\phi}(\mathbf{z}|\mathbf{x})}{p(\mathbf{z})} + \ln \frac{q_{\phi}(\mathbf{z}|\mathbf{x})}{p(\mathbf{z}|\mathbf{x})} \right] \\
+&amp;= \mathbb{E}_{\mathbf{z} \sim q_{\phi}(\mathbf{z}|\mathbf{x})} \left[ \ln p(\mathbf{x}|\mathbf{z}) \right] - KL\left[ q_{\phi}(\mathbf{z}|\mathbf{x}) \| p(\mathbf{z}) \right] + KL \left[ q_{\phi}(\mathbf{z}|\mathbf{x}) \|p(\mathbf{z}|\mathbf{x}) \right] .
+\end{align}<p>Please note that in the derivation above we use the sum and the product rules together with multiplying by $1 = \frac{q_{\phi}(\mathbf{z}|\mathbf{x})}{q_{\phi}(\mathbf{z}|\mathbf{x})}$, nothing else, no dirty tricks here! Please try to replicate this by yourself, step by step. If you understand this derivation well, it would greatly help you to see where potential problems of the VAEs (and the latent variable models in general) lie.</p>
+<p>Once you analyzed this derivation, let us take a closer look at it:</p>
+$$
+\ln p(\mathbf{x}) = \underbrace{\mathbb{E}_{\mathbf{z} \sim q_{\phi}(\mathbf{z}|\mathbf{x})} \left[ \ln p(\mathbf{x}|\mathbf{z}) \right] - KL\left[ q_{\phi}(\mathbf{z}|\mathbf{x}) \| p(\mathbf{z}) \right]}_{ELBO} + \underbrace{KL \left[ q_{\phi}(\mathbf{z}|\mathbf{x}) \|p(\mathbf{z}|\mathbf{x}) \right]}_{\geq 0}
+$$<p>The last component, $KL \left[ q_{\phi}(\mathbf{z}|\mathbf{x}) \|p(\mathbf{z}|\mathbf{x}) \right]$, measures the difference between the variational posterior and the <em>real</em> posterior but we don't know what the real posterior is! However, we can skip this part since the Kullback-Leibler divergence is always equal or greater than $0$ (from its definition), thus, we obtain the ELBO. We can think of $KL \left[ q_{\phi}(\mathbf{z}|\mathbf{x}) \|p(\mathbf{z}|\mathbf{x}) \right]$ as a gap between the ELBO and the true log-likelihood.</p>
+<p>Beautiful! But ok, why this is so important? Well, if we take $q_{\phi}(\mathbf{z}|\mathbf{x})$ that is a bad approximation of $p(\mathbf{z}|\mathbf{x})$, then the KL term will be larger, and even if the ELBO is optimized well, the gap between the ELBO and the true log-likelihood could be huge! In plain words, if we take too simplistic posterior, we can end up with a bad VAE anyway. What is "bad" in this context? Let us take a look at Figure 2. If the ELBO is a loose lower bound on the log-likelihood, then the optimal solution of the ELBO could be completely different than the solution of the log-likelihood. We will comment on how to deal with that later on, for now, it is enough to be aware of that issue.</p>
+<p><img src="elbo.png" width="300"></p>
+<p><strong>Figure 2.</strong> The ELBO is a lower bound on the log-likelihood. As a result, $\hat{\theta}$ maximizing the ELBO does not necessarily coincides with $\theta^{*}$ that maximizes $\ln p(\mathbf{x})$. The looser the ELBO is, the more this can bias maximum likelihood estimates of the model parameters.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Components of VAEs</strong> Let us wrap up what we know right now. First of all, we consider a class of amortized variational posteriors $\{q_{\phi}(\mathbf{z}|\mathbf{x})\}_{\phi}$ that approximate the true posterior $p(\mathbf{z}|\mathbf{x})$. We can see them as <strong>stochastic encoders</strong>. Second, the conditional likelihood $p(\mathbf{x}|\mathbf{z})$ could be seen as a <strong>stochastic decoder</strong>. Third, the last component, $p(\mathbf{z})$, is the marginal distribution, also referred to as a <strong>prior</strong>. Lastly, the objective is the ELBO, a lower bound to the log-likelihood function:</p>
+$$
+\ln p(\mathbf{x}) \geq \mathbb{E}_{\mathbf{z}\sim q_{\phi}(\mathbf{z}|\mathbf{x})} \left[ \ln p(\mathbf{x} | \mathbf{z}) \right] - \mathbb{E}_{\mathbf{z}\sim q_{\phi}(\mathbf{z}|\mathbf{x})} \left[ \ln q_{\phi}(\mathbf{z}|\mathbf{x}) -  \ln p(\mathbf{z}) \right] .
+$$<p>There are two questions left to get the full picture of the VAEs:</p>
+<ol>
+<li>How to parameterize the distributions?</li>
+<li>How to calculate the expected values? After all, these integrals haven't disappeared!</li>
+</ol>
+<p><strong>Parameterization of distributions</strong> As you can probably guess by now, we use neural networks to parameterize the encoders and the decoders. But before we use the neural networks, we should know <strong>what</strong> distributions we use! Fortunately, in the VAE framework we are almost free to choose any distributions! However, we must remember that they should make sense for a considered problem. So far, we have explained everything through images, so let us continue that. If $\mathbf{x} \in \{0, 1, \ldots, 255\}^{D}$, then we <strong>can't</strong> use a Normal distribution, because its support is totally different than the support of discrete-valued images. A possible distribution we can use is the <strong>categorical distribution</strong>. Now we have:</p>
+$$
+p_{\theta}(\mathbf{x} | \mathbf{z}) = \mathrm{Categorical} \left( \mathbf{x}|\theta(\mathbf{z}) \right),
+$$<p>where the probabilities are given by a neural network $\mathrm{NN}$, namely, $\theta(\mathbf{z}) = \mathrm{softmax}\left( \mathrm{NN}(\mathbf{z})\right)$. The neural network $\mathrm{NN}$ could be an MLP, a convolutional neural network, RNNs, etc.</p>
+<p>The choice of a distribution for the latent variables depends on how we want to express the latent factors in data. For convenience, typically $\mathbf{z}$ is taken as a vector of continuous random variables, $\mathbf{z} \in \mathbb{R}^{M}$. Then, we can use Gaussians for both the variational posterior and the prior:</p>
+\begin{align}
+q_{\phi}(\mathbf{z}|\mathbf{x}) &amp;= \mathcal{N}\left(\mathbf{z} | \mu_{\phi}(\mathbf{x}), \mathrm{diag}\left[ \sigma_{\phi}^2(\mathbf{x}) \right] \right) \\
+p(\mathbf{z}) &amp;= \mathcal{N}\left(\mathbf{z} | 0, \mathbf{I} \right)
+\end{align}<p>where $\mu_{\phi}(\mathbf{x})$ and $\sigma_{\phi}^2(\mathbf{x})$ are outputs of a neural network, similarly to the case of the decoder. In practice, we can have a shared neural network $\mathrm{NN}(\mathbf{x})$ that outputs $2M$ values that are further split into $M$ values for the mean $\mu$ and $M$ values for the variance $\sigma^2$. For convenience, we consider a diagonal covariance matrix. Moreover, here we take the standard Gaussian prior. We will comment on that later.</p>
+<p><strong>Reparameterization trick</strong> So far, we played around with the log-likelihood and we ended up with the ELBO. However, there is still a problem with calculating the expected value, because it contains an integral! Therefore, the question is how we can calculate it and why it is better than the MC-approximation of the log-likelihood without the variational posterior. In fact, we will use the MC-approximation, but now, instead of sampling from the prior $p(\mathbf{z})$, we will sample from the variational posterior $q_{\phi}(\mathbf{z}|\mathbf{x})$. Is it better? Yes, because the variational posterior assigns typically more probability mass in a smaller region than the prior. If you play around with your VAE and examine the variance, you'll probably notice that the variational posteriors are almost deterministic (whether it is good or bad is rather an open question). As a result, we should get a better approximation! However, there is still an issue with the variance of the approximation. Simply speaking, if we sample $\mathbf{z}$ from $q_{\phi}(\mathbf{z}|\mathbf{x})$, plug them into the ELBO, and calculate gradients with respect to the parameters of a neural network $\phi$, the variance of the gradient may still be pretty large! A possible solution to that, first noticed by statisticians (e.g., see (Devroye, 1996)) is the idea of <strong>reparameterizing</strong> the distribution. The idea is to realize that we can express a random variable as a composition of primitive transformations (e.g., arithmetic operations, logarithm, etc.) of an independent random variable with the simple distribution. For instance, if we consider a Gaussian random variable $z$ with a mean $\mu$ and a variance $\sigma^{2}$, and an independent random variable $\epsilon \sim \mathcal{N}(\epsilon | 0,1)$, then the following holds:</p>
+$$
+z = \mu + \sigma \cdot \epsilon.
+$$<p>Now, if we start sampling $\epsilon$ from the standard Gaussian, and apply the above transformation, then we get a sample from $\mathcal{N}(z | \mu, \sigma)$!</p>
+<p><img src="reparameterization_trick.png" width="250"></p>
+<p><strong>Figure 3.</strong> An example of reparameterizing a Gaussian distribution: We scale $\epsilon$ distributed according to the standard Gaussian by $\sigma$, and shift it by $\mu$.</p>
+<p>If you don't remember this fact from statistics, or you simply don't believe me, write a simple code for that and play around with it. In fact, this idea could be applied to many more distributions (Kingma &amp; Welling, 2014).</p>
+<p>The <strong>reparameterization trick</strong> could be used in the encoder $q_{\phi}(\mathbf{z}|\mathbf{x})$. As observed by (Kingma &amp; Welling, 2013; Rezende et al., 2014), we can drastically reduce the variance of the gradient by using this reparameterization of the Gaussian distribution. Why? Because the randomness comes from the independent source $p(\epsilon)$, and we calculate gradient with respect to a deterministic function (i.e., a neural network), not random objects. Even better, since we learn the VAE using stochastic gradient descent, it is enough to sample $\mathbf{z}$ only once during training!</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="VAE-in-action!">VAE in action!<a class="anchor-link" href="#VAE-in-action!">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>We went through a lot of theory and discussions, and you might think it is impossible to implement a VAE. However, it is actually simpler than it might look. Let us sum up what we know so far and focus on very specific distributions and neural networks.</p>
+<p>First of all, we will use the following distributions:</p>
+<ul>
+<li>$q_{\phi}(\mathbf{z}|\mathbf{x}) = \mathcal{N}\left(\mathbf{z} | \mu_{\phi}(\mathbf{x}), \sigma_{\phi}^2(\mathbf{x}) \right)$;</li>
+<li>$p(\mathbf{z}) = \mathcal{N}\left(\mathbf{z} | 0, \mathbf{I} \right)$;</li>
+<li>$p_{\theta}(\mathbf{x} | \mathbf{z}) = \mathrm{Categorical} \left( \mathbf{x}|\theta(\mathbf{z}) \right)$.</li>
+</ul>
+<p>We assume that $x_{d} \in \mathcal{X} = \{0, 1, \ldots, L-1\}$.</p>
+<p>Next, we will use the following networks:</p>
+<ul>
+<li>The <em>encoder network</em> :
+$$
+\mathbf{x} \in \mathcal{X}^D \rightarrow \mathrm{Linear}(D, 256) \rightarrow \mathrm{LeakyReLU} \rightarrow \mathrm{Linear}(256,2\cdot M) \rightarrow \mathrm{split}\rightarrow \mu \in \mathbb{R}^{M},\ \log \sigma^{2} \in \mathbb{R}^{M}
+$$ </li>
+</ul>
+<p>Notice that the last layer outputs $2M$ values because we must have $M$ values for the mean, and $M$ values for the (log-)variance. Moreover, a variance must be positive, therefore, instead, we consider the logarithm of the variance because it can take real values then. As a result, we don't need to bother about variances being always positive.</p>
+<ul>
+<li>The <em>decoder network</em> :
+$$
+\mathbf{z} \in \mathbb{R}^{M} \rightarrow \mathrm{Linear}(M, 256) \rightarrow \mathrm{LeakyReLU} \rightarrow \mathrm{Linear}(256, D\cdot L) \rightarrow \mathrm{reshape} \rightarrow \mathrm{softmax} \rightarrow \theta \in [0,1]^{D \times L}
+$$ </li>
+</ul>
+<p>Since we use the categorical distribution for $\mathbf{x}$, the outputs of the decoder network are probabilities. First, the last layer must output $D\cdot L$ values, where $D$ is the number of pixels, and $L$ is the number of possible values of a pixel. Then, we must reshape the output to a tensor of the following shape: $(B, D, L)$, where $B$ is the batch size. Afterward, we can apply the softmax activation function to obtain probabilities.</p>
+<p>Finally, for a given dataset $\mathcal{D} = \{\mathbf{x}_{n}\}_{n=1}^{N}$, the training objective is the ELBO where we use the single sample from the variational posterior $\mathbf{z}_{\phi,n} = \mu_{\phi}( \mathbf{x}_{n}) + \sigma_{\phi}(\mathbf{x}_{n}) \odot \epsilon$. We must remember that in almost any available package we minimize by default, so we must take the negative sign, namely:</p>
+$$
+- ELBO(\mathcal{D}; \theta, \phi) = \sum_{n=1}^{N} - \left\{ \ln \mathrm{Categorical} \left( \mathbf{x}_{n}|\theta \left( 
+\mathbf{z}_{\phi,n} \right) \right) + \left[ \ln \mathcal{N}\left( \mathbf{z}_{\phi,n} | \mu_{\phi}(\mathbf{x}_n), \sigma_{\phi}^2(\mathbf{x}_n) \right) + \ln \mathcal{N}\left( \mathbf{z}_{\phi,n} | 0, \mathbf{I} \right) \right] \right\}
+$$<p>So as you can see, the whole math boils down to a relatively simple learning procedure:</p>
+<ol>
+<li>Take $\mathbf{x}_{n}$ and apply the encoder network to get $\mu_{\phi}( \mathbf{x}_{n})$ and $\ln \sigma_{\phi}^{2}(\mathbf{x}_{n})$.</li>
+<li>Calculate $\mathbf{z}_{\phi,n}$ by applying the reparameterization trick, $\mathbf{z}_{\phi,n} = \mu_{\phi}( \mathbf{x}_{n}) + \sigma_{\phi}(\mathbf{x}_{n}) \odot \epsilon$, where $\epsilon \sim \mathcal{N}(0, \mathbf{I})$.</li>
+<li>Apply the decoder network to $\mathbf{z}_{\phi,n}$ to get the probabilities $\theta(\mathbf{z}_{\phi,n})$.</li>
+<li>Calculate the ELBO by pluging in $\mathbf{x}_{n}$, $\mathbf{z}_{\phi,n}$, $\mu_{\phi}( \mathbf{x}_{n})$ and $\ln \sigma_{\phi}^{2}(\mathbf{x}_{n})$.</li>
+</ol>
+<p>Now, all components are ready to be turned into a code! For the full implementation, please take a look at  <a href="https://github.com/jmtomczak/intro_dgm" target="_blank">[link]</a>. Here, we focus only on the code for the VAE model. We provide details in the comments. We divide the code into four classes: Encoder, Decoder, Prior, and VAE. It might look like overkill, but it may help you to think of the VAE as a composition of three parts and better comprehend the whole approach.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt"></div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">Encoder</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">encoder_net</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Encoder</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        
+        <span class="c1"># The init of the encoder network.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span> <span class="o">=</span> <span class="n">encoder_net</span>
+    
+    <span class="c1"># The reparameterization trick for Gaussians.</span>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">reparameterization</span><span class="p">(</span><span class="n">mu</span><span class="p">,</span> <span class="n">log_var</span><span class="p">):</span>
+        <span class="c1"># The formulat is the following:</span>
+        <span class="c1"># z = mu + std * epsilon</span>
+        <span class="c1"># epsilon ~ Normal(0,1)</span>
+        
+        <span class="c1"># First, we need to get std from log-variance.</span>
+        <span class="n">std</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="mf">0.5</span><span class="o">*</span><span class="n">log_var</span><span class="p">)</span>
+        
+        <span class="c1"># Second, we sample epsilon from Normal(0,1).</span>
+        <span class="n">eps</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">std</span><span class="p">)</span>
+        
+        <span class="c1"># The final output</span>
+        <span class="k">return</span> <span class="n">mu</span> <span class="o">+</span> <span class="n">std</span> <span class="o">*</span> <span class="n">eps</span>
+    
+    <span class="c1"># This function implements the output of the encoder network (i.e., parameters of a Gaussian).</span>
+    <span class="k">def</span> <span class="nf">encode</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="c1"># First, we calculate the output of the encoder netowork of size 2M.</span>
+        <span class="n">h_e</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="c1"># Second, we must divide the output to the mean and the log-variance.</span>
+        <span class="n">mu_e</span><span class="p">,</span> <span class="n">log_var_e</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="n">h_e</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">mu_e</span><span class="p">,</span> <span class="n">log_var_e</span>
+    
+    <span class="c1"># Sampling procedure.</span>
+    <span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mu_e</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">log_var_e</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="c1">#If we don&#39;t provide a mean and a log-variance, we must first calcuate it:</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">mu_e</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">log_var_e</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">):</span>
+            <span class="n">mu_e</span><span class="p">,</span> <span class="n">log_var_e</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="c1"># Or the final sample</span>
+        <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Otherwise, we can simply apply the reparameterization trick!</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">mu_e</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">log_var_e</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;mu and log-var can`t be None!&#39;</span><span class="p">)</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reparameterization</span><span class="p">(</span><span class="n">mu_e</span><span class="p">,</span> <span class="n">log_var_e</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">z</span>
+
+    <span class="c1"># This function calculates the log-probability that is later used for calculating the ELBO.</span>
+    <span class="k">def</span> <span class="nf">log_prob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mu_e</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">log_var_e</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">z</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="c1"># If we provide x alone, then we can calculate a corresponsing sample:</span>
+        <span class="k">if</span> <span class="n">x</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">mu_e</span><span class="p">,</span> <span class="n">log_var_e</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+            <span class="n">z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">mu_e</span><span class="o">=</span><span class="n">mu_e</span><span class="p">,</span> <span class="n">log_var_e</span><span class="o">=</span><span class="n">log_var_e</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Otherwise, we should provide mu, log-var and z!</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">mu_e</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">log_var_e</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">z</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;mu, log-var and z can`t be None!&#39;</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="n">log_normal_diag</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">mu_e</span><span class="p">,</span> <span class="n">log_var_e</span><span class="p">)</span>
+    
+    <span class="c1"># PyTorch forward pass: it is either log-probability (by default) or sampling.</span>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s1">&#39;log_prob&#39;</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">type</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;encode&#39;</span><span class="p">,</span> <span class="s1">&#39;log_prob&#39;</span><span class="p">],</span> <span class="s1">&#39;Type could be either encode or log_prob&#39;</span>
+        <span class="k">if</span> <span class="nb">type</span> <span class="o">==</span> <span class="s1">&#39;log_prob&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_prob</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt"></div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">Decoder</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">decoder_net</span><span class="p">,</span> <span class="n">distribution</span><span class="o">=</span><span class="s1">&#39;categorical&#39;</span><span class="p">,</span> <span class="n">num_vals</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Decoder</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        
+        <span class="c1"># The decoder network.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">decoder</span> <span class="o">=</span> <span class="n">decoder_net</span>
+        <span class="c1"># The distribution used for the decoder (it is categorical by default, as discussed above).</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span> <span class="o">=</span> <span class="n">distribution</span>
+        <span class="c1"># The number of possible values. This is important for the categorical distribution.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_vals</span><span class="o">=</span><span class="n">num_vals</span>
+    
+    <span class="c1"># This function calculates parameters of the likelihood function p(x|z)</span>
+    <span class="k">def</span> <span class="nf">decode</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
+        <span class="c1"># First, we apply the decoder network.</span>
+        <span class="n">h_d</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">decoder</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+        
+        <span class="c1"># In this example, we use only the categorical distribution...</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span> <span class="o">==</span> <span class="s1">&#39;categorical&#39;</span><span class="p">:</span>
+            <span class="c1"># We save the shapes: batch size</span>
+            <span class="n">b</span> <span class="o">=</span> <span class="n">h_d</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="c1"># and the dimensionality of x.</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="n">h_d</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">//</span><span class="bp">self</span><span class="o">.</span><span class="n">num_vals</span>
+            <span class="c1"># Then we reshape to (Batch size, Dimensionality, Number of Values).</span>
+            <span class="n">h_d</span> <span class="o">=</span> <span class="n">h_d</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_vals</span><span class="p">)</span>
+            <span class="c1"># To get probabilities, we apply softmax.</span>
+            <span class="n">mu_d</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="n">h_d</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">mu_d</span><span class="p">]</span>
+        <span class="c1"># ... however, we also present the Bernoulli distribution. We are nice, aren&#39;t we?</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span> <span class="o">==</span> <span class="s1">&#39;bernoulli&#39;</span><span class="p">:</span>
+            <span class="c1"># In the Bernoulli case, we have x_d \in {0,1}. Therefore, it is enough to output a single probability,</span>
+            <span class="c1"># because p(x_d=1|z) = \theta and p(x_d=0|z) = 1 - \theta</span>
+            <span class="n">mu_d</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sigmoid</span><span class="p">(</span><span class="n">h_d</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">mu_d</span><span class="p">]</span>
+        
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Either `categorical` or `bernoulli`&#39;</span><span class="p">)</span>
+    
+    <span class="c1"># This function implements sampling from the decoder.</span>
+    <span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
+        <span class="n">outs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span> <span class="o">==</span> <span class="s1">&#39;categorical&#39;</span><span class="p">:</span>
+            <span class="c1"># We take the output of the decoder</span>
+            <span class="n">mu_d</span> <span class="o">=</span> <span class="n">outs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="c1"># and save shapes (we will need that for reshaping). </span>
+            <span class="n">b</span> <span class="o">=</span> <span class="n">mu_d</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="n">mu_d</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="c1"># Here we use reshaping</span>
+            <span class="n">mu_d</span> <span class="o">=</span> <span class="n">mu_d</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">mu_d</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_vals</span><span class="p">)</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">mu_d</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_vals</span><span class="p">)</span>
+            <span class="c1"># Eventually, we sample from the categorical (the built-in PyTorch function).</span>
+            <span class="n">x_new</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">multinomial</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">num_samples</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">m</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span> <span class="o">==</span> <span class="s1">&#39;bernoulli&#39;</span><span class="p">:</span>
+            <span class="c1"># In the case of Bernoulli, we don&#39;t need any reshaping</span>
+            <span class="n">mu_d</span> <span class="o">=</span> <span class="n">outs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="c1"># and we can use the built-in PyTorch sampler!</span>
+            <span class="n">x_new</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">bernoulli</span><span class="p">(</span><span class="n">mu_d</span><span class="p">)</span>
+        
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Either `categorical` or `bernoulli`&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">x_new</span>
+    
+    <span class="c1"># This function calculates the conditional log-likelihood function.</span>
+    <span class="k">def</span> <span class="nf">log_prob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
+        <span class="n">outs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span> <span class="o">==</span> <span class="s1">&#39;categorical&#39;</span><span class="p">:</span>
+            <span class="n">mu_d</span> <span class="o">=</span> <span class="n">outs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">log_p</span> <span class="o">=</span> <span class="n">log_categorical</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">mu_d</span><span class="p">,</span> <span class="n">num_classes</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">num_vals</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="s1">&#39;sum&#39;</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span> <span class="o">==</span> <span class="s1">&#39;bernoulli&#39;</span><span class="p">:</span>
+            <span class="n">mu_d</span> <span class="o">=</span> <span class="n">outs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">log_p</span> <span class="o">=</span> <span class="n">log_bernoulli</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">mu_d</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="s1">&#39;sum&#39;</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+            
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Either `categorical` or `bernoulli`&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">log_p</span>
+    
+    <span class="c1"># The forward pass is either a log-prob or a sample.</span>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s1">&#39;log_prob&#39;</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">type</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;decoder&#39;</span><span class="p">,</span> <span class="s1">&#39;log_prob&#39;</span><span class="p">],</span> <span class="s1">&#39;Type could be either decode or log_prob&#39;</span>
+        <span class="k">if</span> <span class="nb">type</span> <span class="o">==</span> <span class="s1">&#39;log_prob&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_prob</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt"></div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="c1"># The current implementation of the prior is very simple, namely, it is a standard Gaussian.</span>
+<span class="c1"># We could have used a built-in PuTorch distribution. However, we didn&#39;t do that for two reasons:</span>
+<span class="c1"># (i) It is important to think of the prior as a crucial component in VAEs.</span>
+<span class="c1"># (ii) We can implement a learnable prior (e.g., a flow-based prior, VampPrior, a muxture of distributions).</span>
+<span class="k">class</span> <span class="nc">Prior</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">L</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Prior</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">L</span> <span class="o">=</span> <span class="n">L</span>
+
+    <span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">):</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">((</span><span class="n">batch_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">L</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">z</span>
+
+    <span class="k">def</span> <span class="nf">log_prob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">log_standard_normal</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt"></div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">VAE</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">encoder_net</span><span class="p">,</span> <span class="n">decoder_net</span><span class="p">,</span> <span class="n">num_vals</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span> <span class="n">L</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">likelihood_type</span><span class="o">=</span><span class="s1">&#39;categorical&#39;</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">VAE</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;VAE by JT.&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span> <span class="o">=</span> <span class="n">Encoder</span><span class="p">(</span><span class="n">encoder_net</span><span class="o">=</span><span class="n">encoder_net</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">decoder</span> <span class="o">=</span> <span class="n">Decoder</span><span class="p">(</span><span class="n">distribution</span><span class="o">=</span><span class="n">likelihood_type</span><span class="p">,</span> <span class="n">decoder_net</span><span class="o">=</span><span class="n">decoder_net</span><span class="p">,</span> <span class="n">num_vals</span><span class="o">=</span><span class="n">num_vals</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prior</span> <span class="o">=</span> <span class="n">Prior</span><span class="p">(</span><span class="n">L</span><span class="o">=</span><span class="n">L</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_vals</span> <span class="o">=</span> <span class="n">num_vals</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">likelihood_type</span> <span class="o">=</span> <span class="n">likelihood_type</span>
+
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="s1">&#39;avg&#39;</span><span class="p">):</span>
+        <span class="c1"># encoder</span>
+        <span class="n">mu_e</span><span class="p">,</span> <span class="n">log_var_e</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">mu_e</span><span class="o">=</span><span class="n">mu_e</span><span class="p">,</span> <span class="n">log_var_e</span><span class="o">=</span><span class="n">log_var_e</span><span class="p">)</span>
+
+        <span class="c1"># ELBO</span>
+        <span class="n">RE</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">decoder</span><span class="o">.</span><span class="n">log_prob</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
+        <span class="n">KL</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prior</span><span class="o">.</span><span class="n">log_prob</span><span class="p">(</span><span class="n">z</span><span class="p">)</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span><span class="o">.</span><span class="n">log_prob</span><span class="p">(</span><span class="n">mu_e</span><span class="o">=</span><span class="n">mu_e</span><span class="p">,</span> <span class="n">log_var_e</span><span class="o">=</span><span class="n">log_var_e</span><span class="p">,</span> <span class="n">z</span><span class="o">=</span><span class="n">z</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">reduction</span> <span class="o">==</span> <span class="s1">&#39;sum&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="o">-</span><span class="p">(</span><span class="n">RE</span> <span class="o">+</span> <span class="n">KL</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="o">-</span><span class="p">(</span><span class="n">RE</span> <span class="o">+</span> <span class="n">KL</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">):</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">decoder</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt"></div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="c1"># Examples of neural networks used for parameterizing the encoder and the decoder.</span>
+
+<span class="c1"># Remember that the encoder outputs 2 times more values because we need L means and L log-variances for a Gaussian.</span>
+<span class="n">encoder</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">D</span><span class="p">,</span> <span class="n">M</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">LeakyReLU</span><span class="p">(),</span>
+                        <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">M</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">LeakyReLU</span><span class="p">(),</span>
+                        <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">L</span><span class="p">))</span>
+
+<span class="c1"># Here we must remember that if we use the categorical distribution, we must output num_vals per each pixel.</span>
+<span class="n">decoder</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">M</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">LeakyReLU</span><span class="p">(),</span>
+                        <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">M</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">LeakyReLU</span><span class="p">(),</span>
+                        <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">num_vals</span> <span class="o">*</span> <span class="n">D</span><span class="p">))</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Perfect! Nowe we are ready to run the full code (take a look at: <a href="https://github.com/jmtomczak/intro_dgm" target="_blank">[link]</a>). After training our ARM, we should obtain results similar to the following:</p>
+<p><strong>A</strong> <img src="vae_real_images.png" width="200"> 
+<strong>B</strong> <img src="vae_generated_images.png" width="200">
+<strong>C</strong> <img src="vae_nll_val_curve.png" width="300">
+<strong>Figure 4.</strong> Examples of outcomes of the training:
+<strong>A</strong> Randomly selected real images.
+<strong>B</strong> Unconditional generations from the VAE.
+<strong>C</strong> The validation curve during training.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Typical-issues-with-VAEs">Typical issues with VAEs<a class="anchor-link" href="#Typical-issues-with-VAEs">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>VAEs are a very powerful class of models, mainly due to their flexibility. Unlike flow-based models, they do not require the invertibility of neural networks, thus, we can use any arbitrary architecture for encoders and decoders. In contrast to ARMs, they learn a low-dimensional data representation and we can control the bottleneck (i.e., the dimensionality of the latent space). However, they also suffer from several issues. Except the ones mentioned before (i.e., a necessity of an efficient integral estimation, a gap between the ELBO and the log-likelihood function for too simplistic variational posteriors), the potential problems are the following:</p>
+<p>Let us take a look at the ELBO and the regularization term. For a non-trainable prior like the standard Gaussian, the regularization term will be minimized if $\forall_{\mathbf{x}} q_{\phi}(\mathbf{z}|\mathbf{x}) = p(\mathbf{z})$. This may happen if the decoder is so powerful that it treats $\mathbf{z}$ as a noise, e.g., a decoder is expressed by an ARM (Alemi et al., 2018). This issue is known as the <strong>posterior collapse</strong> (Bowman et al., 2015).</p>
+<p>Another issue is associated with a mismatch between the aggregated posterior, $q_{\phi}(\mathbf{z}) = \frac{1}{N} \sum_{n} q_{\phi}(\mathbf{z}|\mathbf{x}_n)$, and the prior $p(\mathbf{z})$. Imagine that we have the standard Gaussian prior and the aggregated posterior (i.e., an average of variational posteriors over all training data). As a result, there are regions where there prior assigns high probability but the aggregated posterior assign low probability, or another way around. Then, sampling from these holes provides unrealistic latent values and the decoder produces images of very low quality. This problem is referred to as the <strong>hole problem</strong> (Rezende &amp; Viola, 2018).</p>
+<p>The last problem we want to discuss is more general and, in fact, it affects all deep generative models. As it was noticed in (Nalisnick et al., 2018), the deep generative models (including VAEs) fail to properly detect out-of-distribution examples. Out-of-distribution datapoints are examples that follow a totally different distribution than the one a model was trained on. For instance, let us assume that our model is trained on MNIST, then FashionMNIST examples are out-of-distribution. Thus, an intuition tells that a properly trained deep generative model should assign high probability to in-distribution examples and low probability to out-of-distribution points. Unfortunately, as shown in (Nalisnick et al., 2018), this is not the case. The <strong>out-of-distribution problem</strong> remains one of the main unsolved problems in deep generative modeling.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="There-are-many,-many-more!">There are many, many more!<a class="anchor-link" href="#There-are-many,-many-more!">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>There are a plethora of papers that extend VAEs and apply them to many problems. Below, we will list out selected papers and only touch upon the vast literature on the topic!</p>
+<p><strong>Estimation of the log-likelihood using importance weighting</strong> As we indicated multiple time, the ELBO is the lower-bound to the log-likelihood and it rather shouldn't be used as a good estimate of the log-likelihood. In (Burda et al., 2015; Rezende et al., 2014), an importance weighting procedure is advocated to better approximate the log-likelihood, namely:</p>
+$$
+\ln p(\mathbf{x}) \approx \ln \frac{1}{K} \sum_{k=1}^{K} \frac{p(\mathbf{x}|\mathbf{z}_{k})}{q_{\phi}(\mathbf{z}_{k}|\mathbf{x})},
+$$<p>where $\mathbf{z}_{k} \sim q_{\phi}(\mathbf{z}_{k}|\mathbf{x})$. Notice that the logarithm is <strong>outside</strong> the expected value. As shown in (Burda et al., 2015), using importance weighting with sufficiently large $K$ gives a good estimate of the log-likelihood. In practice, $K$ is taken to be $512$ or more if the computational budget allows.</p>
+<p><strong>Enhancing VAEs: Better encoders</strong> After introducing the idea of VAEs, many papers focused on proposing a flexible family of variational posteriors. The most prominent direction is based on utilizing conditional flow-based models
+(van den Berg et al., 2018; Hoogeboom et al., 2020; Kingma et al., 2016; Rezende &amp; Mohamed, 2015; Tomczak &amp; Welling, 2016; Tomczak &amp; Welling, 2017).</p>
+<p><strong>Enhancing VAEs: Better decoders</strong> VAEs allow using any neural network to parameterize the decoder. Therefore, we can use fully-connected networks, fully convolutional networks, ResNets, or ARMs. For instance, in (Gulrajani et al., 2016), a PixelCNN-based decoder was used utilized in a VAE.</p>
+<p><strong>Enhancing VAEs: Better priors</strong> As mentioned before, the could be a serious issue if there is a big mismatch between the aggregated posterior and the prior. There many papers that try to alleviate this issue by using a multimodal prior mimicking the aggregated posterior (known as the VampPrior) (Tomczak &amp; Welling, 2018), or a flow-based prior (e.g., (Gatopoulos &amp; Tomczak, 2020)), an ARM-based prior (Chen et al., 2016) or using an idea of resampling (Bauer &amp; Mnih, 2019).</p>
+<p><strong>Extending VAEs</strong> Here, we present the unsupervised version of VAEs. However, there is no restriction to that and we can introduce labels or other variables. In (Kingma et al., 2014) a semi-supervised VAE was proposed. This idea was further extended to the concept of fair representations (Louizos et al., 2015). In (Ilse et al., 2020), the authors proposed a specific latent representation that allows domain generalization in VAEs. In
+(Blundell et al., 2015) variational inference and the reparameterization trick were used for Bayesian Neural Nets. This paper is not necessarily introducing a VAE, but a VAE-like way of dealing with Bayesian neural nets.</p>
+<p><strong>VAEs for non-image data</strong> In this post, I explain everything on images. However, there is no restriction on that! In (Bowman et al., 2015) a VAE was proposed to deal with sequential data (e.g., text). The encoder and the decoder were parameterized by LSTMs. An interesting application of the VAE framework was also presented in (Jin et al., 2018) where VAEs were used for the molecular graph generation. In (Habibian et al., 2019) the authors proposed a VAE-like for video compression.</p>
+<p><strong>Different latent spaces</strong> Typically, the Euclidean latent space is considered. However, the VAE framework allows us to think of other spaces. For instance, in (Davidson et al., 2018; Davidson et al., 2019) a hyperspherical latent-space was used, and in (Mathieu et al., 2019) the hyperbolic latent space was utilized.</p>
+<p><strong>The posterior collapse</strong> There were many ideas proposed to deal with the posterior collapse. For instance, (He et al., 2019) propose to update variational posteriors more often than the decoder. In (Dieng et al., 2019) a new architecture of the decoder is proposed by introducing <em>skip connection</em> to avoiding the posterior collapse.</p>
+<p><strong>Various perspectives on the objective</strong> The core of the VAE is the ELBO. However, we can consider different objectives. For instance, (Dieng et al., 2017) propose an upper-bound to the log-likelihood that is based on the chi-square divergence (CUBO). In (Alemi et al., 2018) an information-theoretic perspective on the ELBO is presented. (Higgins et al., 2016) introduced the $\beta$-VAE where the regularization term is weighted by a fudge factor $\beta$. The objective does not correspond to the lowe-bound of the log-likelihood though.</p>
+<p><strong>Deterministic Regularized Auto-Encoders</strong>: We can take look at the VAE and the objective, as mentioned before, and think of it as a regularized version of an auto-encoder with a stochastic encoder and a stochastic decoder. (Ghosh et al., 2020) "peeled off" VAEs from all stochasticity and indicated similarities between deterministic regularized auto-encoders and VAEs, and highlited potential issues with VAEs. Moreover, they brilliantly pointed out that even with a deterministic encoders, due to stochasticity of the empirical distribution, we can fit a model to the aggregated posterior. As a result, the deterministic (regularized) auto-encoder could be turned into a generative model by sampling from our model, $p_{\lambda}(\mathbf{z})$, and then, deterministically, mapping $\mathbf{z}$ to the space of observable $\mathbf{x}$. In my opinion, this direction should be further explored and an important question is whether we indeed need any stochasticity at all.</p>
+<p><strong>Hierarchical VAEs</strong> Very recently, there are many VAEs with a deep, hierarchical structure of latent variables that achieved remarkable results! The most important ones are definitely BIVA (Maaløe et al., 2019), NVA (Vahdat &amp; Kautz, 2020), and very deep VAEs (Child, 2020). Another interesting perspective on a deep, hierarchical VAE was presented in (Gatopoulos &amp; Tomczak, 2020) where, additionally, a series of deterministic functions was used.</p>
+<p><strong>Adversarial Auto-Encoders</strong> Another interesting perspective on VAEs is presented in (Makhzani et al., 2015). Since learning the aggregated posterior as the prior is an important component mentioned in some papers (e.g., (Tomczak &amp; Welling, 2018)), a different approach would be to train the prior with an adversarial loss. Further, (Makhzani et al., 2015) present various ideas how auto-encoders could benefit from adverarial learning.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="References">References<a class="anchor-link" href="#References">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>(Alemi et al., 2018) Alemi, A., Poole, B., Fischer, I., Dillon, J., Saurous, R. A., &amp; Murphy, K. (2018, July). Fixing a broken ELBO. International Conference on Machine Learning (pp. 159-168). PMLR.</p>
+<p>(Andrieu, 2003) Andrieu, C., De Freitas, N., Doucet, A., &amp; Jordan, M. I. (2003). An introduction to MCMC for machine learning. Machine learning, 50(1-2), 5-43.</p>
+<p>(Bauer &amp; Mnih, 2019) Bauer, M., &amp; Mnih, A. (2019). Resampled priors for variational autoencoders. In The 22nd International Conference on Artificial Intelligence and Statistics (pp. 66-75). PMLR.</p>
+<p>(van den Berg et al., 2018) van den Berg, R., Hasenclever, L., Tomczak, J. M., &amp; Welling, M. (2018). Sylvester normalizing flows for variational inference. UAI 2018.</p>
+<p>(Bishop, 2006) Bishop, C. M. (2006). Pattern Recognition and Machine Learning. Springer.</p>
+<p>(Blundell et al., 2015) Blundell, C., Cornebise, J., Kavukcuoglu, K., &amp; Wierstra, D. (2015, July). Weight uncertainty in neural networks. In Proceedings of the 32nd International Conference on International Conference on Machine Learning-Volume 37 (pp. 1613-1622).</p>
+<p>(Bowman et al., 2015) Bowman, S. R., Vilnis, L., Vinyals, O., Dai, A. M., Jozefowicz, R., &amp; Bengio, S. (2015). Generating sentences from a continuous space. arXiv preprint arXiv:1511.06349.</p>
+<p>(Burda et al., 2015) Burda, Y., Grosse, R., &amp; Salakhutdinov, R. (2015). Importance weighted autoencoders. arXiv preprint arXiv:1509.00519.</p>
+<p>(Chen et al., 2016) Chen, X., Kingma, D. P., Salimans, T., Duan, Y., Dhariwal, P., Schulman, J., Sutskever, I., &amp; Abbeel, P. (2016). Variational lossy autoencoder. arXiv preprint arXiv:1611.02731.</p>
+<p>(Child, 2020) Child, R. (2020). Very Deep VAEs Generalize Autoregressive Models and Can Outperform Them on Images. arXiv preprint arXiv:2011.10650.</p>
+<p>(Davidson et al., 2018) Davidson, T. R., Falorsi, L., De Cao, N., Kipf, T., &amp; Tomczak, J. M. (2018). Hyperspherical variational auto-encoders. UAI 2018.</p>
+<p>(Davidson et al., 2019) Davidson, T. R., Tomczak, J. M., &amp; Gavves, E. (2019). Increasing Expressivity of a Hyperspherical VAE. arXiv preprint arXiv:1910.02912.</p>
+<p>(Devroye, 1996) Devroye, L. (1996). Random variate generation in one line of code. In Proceedings Winter Simulation Conference (pp. 265-272). IEEE.</p>
+<p>(Dieng et al., 2017) Dieng, A. B., Tran, D., Ranganath, R., Paisley, J., &amp; Blei, D. (2017). Variational Inference via $\chi $ Upper Bound Minimization. In Advances in Neural Information Processing Systems (pp. 2732-2741).</p>
+<p>(Dieng et al., 2019) Dieng, A. B., Kim, Y., Rush, A. M., &amp; Blei, D. M. (2019). Avoiding latent variable collapse with generative skip models. In The 22nd International Conference on Artificial Intelligence and Statistics (pp. 2397-2405). PMLR.</p>
+<p>(Gatopoulos &amp; Tomczak, 2020) Gatopoulos, I., &amp; Tomczak, J. M. (2020). Self-Supervised Variational Auto-Encoders. arXiv preprint arXiv:2010.02014.</p>
+<p>(Ghosh et al., 2020) Ghosh, P., Sajjadi, M. S., Vergari, A., Black, M., &amp; Schölkopf, B. (2020). From variational to deterministic autoencoders. ICLR.</p>
+<p>(Gulrajani et al., 2016) Gulrajani, I., Kumar, K., Ahmed, F., Taiga, A. A., Visin, F., Vazquez, D., &amp; Courville, A. (2016). Pixelvae: A latent variable model for natural images. arXiv preprint arXiv:1611.05013.</p>
+<p>(Habibian et al., 2019) Habibian, A., Rozendaal, T. V., Tomczak, J. M., &amp; Cohen, T. S. (2019). Video compression with rate-distortion autoencoders. In Proceedings of the IEEE International Conference on Computer Vision (pp. 7033-7042).</p>
+<p>(He et al., 2019) He, J., Spokoyny, D., Neubig, G., &amp; Berg-Kirkpatrick, T. (2019). Lagging inference networks and posterior collapse in variational autoencoders. arXiv preprint arXiv:1901.05534.</p>
+<p>(Higgins et al., 2016) Higgins, I., Matthey, L., Pal, A., Burgess, C., Glorot, X., Botvinick, M., Mohamed, S., &amp; Lerchner, A. (2016). beta-VAE: Learning Basic Visual Concepts with a Constrained Variational Framework.</p>
+<p>(Hoffman &amp; Johnson, 2016) Hoffman, M. D., &amp; Johnson, M. J. (2016). Elbo surgery: yet another way to carve up the variational evidence lower bound. In Workshop in Advances in Approximate Bayesian Inference, NIPS (Vol. 1, p. 2).</p>
+<p>(Hoogeboom et al., 2020) Hoogeboom, E., Satorras, V. G., Tomczak, J. M., &amp; Welling, M. (2020). The Convolution Exponential and Generalized Sylvester Flows. arXiv preprint arXiv:2006.01910.</p>
+<p>(Ilse et al., 2020) Ilse, M., Tomczak, J. M., Louizos, C., &amp; Welling, M. (2020). DIVA: Domain invariant variational autoencoders. In Medical Imaging with Deep Learning (pp. 322-348). PMLR.</p>
+<p>(Jin et al., 2018) Jin, W., Barzilay, R., &amp; Jaakkola, T. (2018). Junction Tree Variational Autoencoder for Molecular Graph Generation. In International Conference on Machine Learning (pp. 2323-2332).</p>
+<p>(Jordan et al., 1999) Jordan, M. I., Ghahramani, Z., Jaakkola, T. S., &amp; Saul, L. K. (1999). An introduction to variational methods for graphical models. Machine learning, 37(2), 183-233.</p>
+<p>(Kim et al., 2018) Kim, Y., Wiseman, S., Miller, A., Sontag, D., &amp; Rush, A. (2018). Semi-amortized variational autoencoders. In International Conference on Machine Learning (pp. 2678-2687). PMLR.</p>
+<p>(Kingma &amp; Welling, 2013) Kingma, D. P., &amp; Welling, M. (2013). Auto-encoding variational bayes. arXiv preprint arXiv:1312.6114.</p>
+<p>(Kingma &amp; Welling, 2014) Kingma, D., &amp; Welling, M. (2014). Efficient gradient-based inference through transformations between bayes nets and neural nets. In International Conference on Machine Learning (pp. 1782-1790).</p>
+<p>(Kingma et al., 2014) Kingma, D. P., Mohamed, S., Jimenez Rezende, D., &amp; Welling, M. (2014). Semi-supervised learning with deep generative models. Advances in neural information processing systems, 27, 3581-3589.</p>
+<p>(Kingma et al., 2016) Kingma, D. P., Salimans, T., Jozefowicz, R., Chen, X., Sutskever, I., &amp; Welling, M. (2016). Improved variational inference with inverse autoregressive flow. Advances in neural information processing systems, 29, 4743-4751.</p>
+<p>(Louizos et al., 2015) Louizos, C., Swersky, K., Li, Y., Welling, M., &amp; Zemel, R. (2015). The variational fair autoencoder. arXiv preprint arXiv:1511.00830.</p>
+<p>(Maaløe et al., 2019) Maaløe, L., Fraccaro, M., Liévin, V., &amp; Winther, O. (2019). Biva: A very deep hierarchy of latent variables for generative modeling. In Advances in neural information processing systems (pp. 6551-6562).</p>
+<p>(Makhzani et al., 2015) Makhzani, A., Shlens, J., Jaitly, N., Goodfellow, I., &amp; Frey, B. (2015). Adversarial autoencoders. arXiv preprint arXiv:1511.05644.</p>
+<p>(Mathieu et al., 2019) Mathieu, E., Le Lan, C., Maddison, C. J., Tomioka, R., &amp; Teh, Y. W. (2019). Continuous hierarchical representations with poincaré variational auto-encoders. In Advances in neural information processing systems (pp. 12565-12576).</p>
+<p>(Nalisnick et al., 2018) Nalisnick, E., Matsukawa, A., Teh, Y. W., Gorur, D., &amp; Lakshminarayanan, B. (2018). Do deep generative models know what they don't know?. arXiv preprint arXiv:1810.09136.</p>
+<p>(Rezende et al., 2014) Rezende, D. J., Mohamed, S., &amp; Wierstra, D. (2014). Stochastic Backpropagation and Approximate Inference in Deep Generative Models. International Conference on Machine Learning (pp. 1278-1286).</p>
+<p>(Rezende &amp; Mohamed, 2015) Rezende, D. J., &amp; Mohamed, S. (2015). Variational inference with normalizing flows. ICML 2015</p>
+<p>(Rezende &amp; Viola, 2018) Rezende, D. J., &amp; Viola, F. (2018). Taming vaes. arXiv preprint arXiv:1810.00597.</p>
+<p>(Tipping &amp; Bishop, 1999) Tipping, M. E., &amp; Bishop, C. M. (1999). Probabilistic principal component analysis. Journal of the Royal Statistical Society: Series B (Statistical Methodology), 61(3), 611-622.</p>
+<p>(Tomczak &amp; Welling, 2016) Tomczak, J. M., &amp; Welling, M. (2016). Improving variational auto-encoders using householder flow. arXiv preprint arXiv:1611.09630.</p>
+<p>(Tomczak &amp; Welling, 2017) Tomczak, J. M., &amp; Welling, M. (2017). Improving variational auto-encoders using convex combination linear inverse autoregressive flow. arXiv preprint arXiv:1706.02326.</p>
+<p>(Tomczak &amp; Welling, 2018) Tomczak, J., &amp; Welling, M. (2018). VAE with a VampPrior. Artificial Intelligence and Statistics (pp. 1214-1223). PMLR.</p>
+<p>(Vahdat &amp; Kautz, 2020) Vahdat, A., &amp; Kautz, J. (2020). NVAE: A deep hierarchical variational autoencoder. arXiv preprint arXiv:2007.03898.</p>
+
+</div>
+</div>
+</div>
+    </div>
+  </div>
+</body>
+
+ 
+
+
+</html>
