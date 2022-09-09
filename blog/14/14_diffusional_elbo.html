@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>14_diffusional_elbo</title><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+
+
+<!-- MUST INCLUDE TO PROPERLY ADD HEADER! -->
+<link rel="stylesheet" type="text/css" media="screen" href="../../css/main.css" />
+<link rel="stylesheet" type="text/css" media="screen" href="../blog.css" />
+
+<!-- Loading mathjax macro -->
+<!-- Load mathjax -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_HTML"></script>
+    <!-- MathJax configuration -->
+    <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+        tex2jax: {
+            inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+            displayMath: [ ['$$','$$'], ["\\[","\\]"] ],
+            processEscapes: true,
+            processEnvironments: true
+        },
+        // Center justify equations in code and markdown cells. Elsewhere
+        // we use CSS to left justify single line equations in code cells.
+        displayAlign: 'center',
+        "HTML-CSS": {
+            styles: {'.MathJax_Display': {"margin": 0}},
+            linebreaks: { automatic: true }
+        }
+    });
+    </script>
+    <!-- End of mathjax configuration --></head>
+<body>
+  <div tabindex="-1" id="notebook" class="border-box-sizing">
+    <div class="container" id="notebook-container">
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="Are-we-dil(ff)usional-about-the-ELBO?!">Are we dil(ff)usional about the ELBO?!<a class="anchor-link" href="#Are-we-dil(ff)usional-about-the-ELBO?!">&#182;</a></h1>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Background-on-Diffusion-based-Models">Background on Diffusion-based Models<a class="anchor-link" href="#Background-on-Diffusion-based-Models">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Diffusion-based models have attracted a lot of attention due to their recent successes in (conditional) image synthesis (Ramesh et al., 2022; Saharia et al., 2022). Since their original introduction (Sohl-Dickstein et al., 2015), there has been a lot of effort into improving their performance by utilizing powerful parameterizations and tweaking with training details (e.g., (Ho et al., 2020; Kingma et al., 2021; Nichol &amp; Dhariwal, 2021)).</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Interestingly, diffusion-based models could be seen as hierarchical latent variable models with $T$ levels of stochastic variables, each $\mathbf{z}_{t}$ belongs to $\mathcal{X}$, trained with variational inference. The family of variational posteriors in these models is peculiar since it is defined by the Gaussian diffusion, namely:</p>
+\begin{equation}
+    q_{\phi}(\mathbf{z}_{1:T} | \mathbf{x}) = \left[ \prod_{t=1}^{T-1} q_{\phi}(\mathbf{z}_t | \mathbf{z}_{t-1}) \right]\ q_{\phi}(\mathbf{z}_{T}|\mathbf{z}_{T-1}) ,
+\end{equation}<p>where $q_{\phi}(\mathbf{z}_{t}|\mathbf{z}_{t-1}) = \mathcal{N}(\mathbf{z}_{t} | \sqrt{1 - \beta_{t}} \mathbf{z}_{t-1}, \beta_t \mathbf{I})$ and we define $\mathbf{z}_0 \equiv \mathbf{x}$. In the context of diffusion-based models, variational posteriors form the \textit{forward diffusion}. The goal of the forward diffusion is to consecutively add (Gaussian) noise such that the last $\mathbf{z}_T$ follows the standard Gaussian distribution.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>The \textit{generative} part (a.k.a., the \textit{backward diffusion}) is defined as follows:</p>
+\begin{equation}
+    p_{\lambda}(\mathbf{z}_{1:T}) = \left[ \prod_{t=1}^{T-1} p_{\lambda}(\mathbf{z}_t | \mathbf{z}_{t+1}) \right]\ p_{\lambda}(\mathbf{z}_T) ,
+\end{equation}<p>where all distributions are parameterized by neural networks (or a single, shared neural network (Ho et al., 2020)). Contrary to the forward diffusion, the backward diffusion aims at removing noise in such a way that, eventually, it ends up with an object (e.g., image).</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="The-ELBO">The ELBO<a class="anchor-link" href="#The-ELBO">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Since diffusion-based models are latent variable models with variational posteriors, we can derive the ELBO by using the ELBO for a single-level latent variable model as a starting point, that is:</p>
+\begin{align}
+   \mathbb{E}_{\mathbf{x} \sim p_{\mathrm{data}} (\mathbf{x})}\left[ \ln p_{\mathrm{model}} (\mathbf{x}) \right] &amp;\geq \underbrace{\mathbb{E}_{\mathbf{x},\mathbf{z}_{1} \sim q_{\phi}(\mathbf{x},\mathbf{z}_{1})}\left[ \ln p_{\theta}(\mathbf{x} | \mathbf{z}_{1}) \right]}_{\stackrel{df}{=}\mathrm{RE}(\phi, \theta)} - D_{\mathrm{KL}}\left[ q_{\phi}(\mathbf{z}_{1:T}) \| p_{\lambda}(\mathbf{z}_{1:T}) \right] - \mathbb{I}_{q_{\phi}(\mathbf{x},\mathbf{z}_{1:T})}\left[\mathbf{x} ; \mathbf{z}_{1:T} \right]  \\
+   &amp;\geq \mathrm{RE}(\phi, \theta) - \mathbb{E}_{\mathbf{x}, \mathbf{z}_{1:T} \sim q_{\phi}(\mathbf{z}_{1:T}, \mathbf{x})}\left[ \sum_{t=1}^{T-1} \ln \frac{q_{\phi}(\mathbf{z}_t|\mathbf{z}_{t-1})}{p_{\lambda}(\mathbf{z}_t | \mathbf{z}_{t+1})} + \ln \frac{q_{\phi}(\mathbf{z}_T|\mathbf{z}_{T-1})}{p_{\lambda}(\mathbf{z}_T)} \right] + \label{eq:diff_model_elbo_1}\\
+   &amp;\ - \sum_{t=1}^{T} \mathbb{I}_{q_{\phi}(\mathbf{x},\mathbf{z}_{1:T})}[\mathbf{z}_t;\mathbf{x} | \mathbf{z}_{1:t-1}] \\
+   &amp;= \mathrm{RE}(\phi, \theta) - \mathbb{E}_{\mathbf{x}, \mathbf{z}_{1:T} \sim q_{\phi}(\mathbf{z}_{1:T}, \mathbf{x})}\left[ \sum_{t=1}^{T-1} \ln \frac{q_{\phi}(\mathbf{z}_t|\mathbf{z}_{t-1})}{p_{\lambda}(\mathbf{z}_t | \mathbf{z}_{t+1})} + \ln \frac{q_{\phi}(\mathbf{z}_T|\mathbf{z}_{T-1})}{p_{\lambda}(\mathbf{z}_T)} \right] + \\
+   &amp;\ - \sum_{t=2}^{T} \mathbb{I}_{q_{\phi}(\mathbf{x},\mathbf{z}_{1:T})}\left[\mathbf{x} ; \mathbf{z}_{t} | \mathbf{z}_{1:t-1} \right] - \mathbb{I}_{q_{\phi}(\mathbf{x},\mathbf{z}_{1})}\left[\mathbf{x} ; \mathbf{z}_{1}\right] \\
+   &amp;= \mathrm{RE}(\phi, \theta) - \mathbb{E}_{\mathbf{x}, \mathbf{z}_{1:T} \sim q_{\phi}(\mathbf{z}_{1:T}, \mathbf{x})}\left[ \sum_{t=1}^{T-1} \ln \frac{q_{\phi}(\mathbf{z}_t|\mathbf{z}_{t-1})}{p_{\lambda}(\mathbf{z}_t | \mathbf{z}_{t+1})} + \ln \frac{q_{\phi}(\mathbf{z}_T|\mathbf{z}_{T-1})}{p_{\lambda}(\mathbf{z}_T)} \right] + \\
+   &amp;\ - \sum_{t=2}^{T} \mathbb{I}_{q_{\phi}(\mathbf{x},\mathbf{z}_{1:T})}\left[\mathbf{x} ; \mathbf{z}_{t} | \mathbf{z}_{t-1} \right] - \mathbb{I}_{q_{\phi}(\mathbf{x},\mathbf{z}_{1})}\left[\mathbf{x} ; \mathbf{z}_{1}\right]
+\end{align}
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>In the equations above, we used the following two facts:</p>
+<p>(i) The convexity of the Kullback-Leibler divergence: $$D_{\mathrm{KL}}\left[\sum_i \pi_i q_i(\mathbf{z}) || \sum_i \pi_i p_i(\mathbf{z})\right] \leq \sum_i \pi_i D_{\mathrm{KL}}\left[q_i(\mathbf{z}) || p_i(\mathbf{z})\right],$$ 
+    where $\sum_i \pi_i = 1$.</p>
+<p>(ii) The chain rule for the mutual information: $\mathbb{I} [\mathbf{z}_{1:T}; \mathbf{x}] = \sum_{t=1}^{T} \mathbb{I}[\mathbf{z}_t;\mathbf{x} | \mathbf{z}_{1:t-1}] $.</p>
+<p>(iii) Since $q_{\phi}(\mathbf{z}_t | \mathbf{z}_{1:t-1}) = q_{\phi}(\mathbf{z}_t | \mathbf{z}_{t-1})$, we get $\mathbb{I}_{q_{\phi}(\mathbf{x},\mathbf{z}_{1:T})}\left[\mathbf{x} ; \mathbf{z}_{t} | \mathbf{z}_{1:t-1}\right] = \mathbb{I}_{q_{\phi}(\mathbf{x},\mathbf{z}_{1:T})}\left[\mathbf{x} ; \mathbf{z}_{t} | \mathbf{z}_{t-1}\right]$.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="An-Analysis">An Analysis<a class="anchor-link" href="#An-Analysis">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Mutual information terms are constants!</strong> Let us quickly remind our findings after analysing the ELBO for a general class of latent variable models. The main puzzling outcome is the negative mutual information that pushes latent variables and observable variables to be stochastically independent. However, the situation for diffusion-based models is completely different because the family of variational posteriors is fixed (non-trainable). The consequences are twofold. First, the negative mutual information terms, $\sum_{t=2}^{T} \mathbb{I}_{q_{\phi}(\mathbf{x},\mathbf{z}_{1:T})}\left[\mathbf{x} ; \mathbf{z}_{t} | \mathbf{z}_{t-1} \right]$ and $\mathbb{I}_{q_{\phi}(\mathbf{x},\mathbf{z}_{1})}\left[\mathbf{x} ; \mathbf{z}_{1}\right]$, are constants for given $\mathbf{x}$ in the view of optimization since the forward diffusion is not adaptive (it is \textit{just} about adding a fixed amount of Gaussian noise). Second, $\mathbb{I}_{q_{\phi}(\mathbf{x},\mathbf{z}_{1})}\left[\mathbf{x} ; \mathbf{z}_{1}\right]$ is a non-zero, constant component. Interestingly, all other mutual information terms are actually zero! To see that, we must remember that the assumed stochastic dependencies in the variational posteriors are the following:</p>
+\begin{equation}
+    \mathbf{x} \rightarrow \mathbf{z}_1 \rightarrow \ldots \rightarrow \mathbf{z}_{t-1} \rightarrow \mathbf{z}_{t} \rightarrow \ldots \rightarrow \mathbf{z}_{T} ,
+\end{equation}<p>thus, once $\mathbf{z}_{t-1}$ is given, we get $q(\mathbf{z}_{t} | \mathbf{z}_{1:t-1}, \mathbf{x}) = q(\mathbf{z}_{t} | \mathbf{z}_{t-1})$. Then, a single mutual information term is the following:</p>
+\begin{align}
+    \mathbb{I}_{q_{\phi}(\mathbf{x},\mathbf{z}_{1:T})}\left[\mathbf{x} ; \mathbf{z}_{t} | \mathbf{z}_{t-1} \right] &amp;= D_{\mathrm{KL}}\left[ q_{\phi}(\mathbf{x},\mathbf{z}_{t} | \mathbf{z}_{t-1}) \| q_{\phi}(\mathbf{z}_{t} | \mathbf{z}_{t-1})\ q_{\phi}(\mathbf{x} | \mathbf{z}_{t-1}) \right] \\
+    &amp;= D_{\mathrm{KL}}\left[ q_{\phi}(\mathbf{z}_{t} | \mathbf{x}, \mathbf{z}_{t-1})\ q_{\phi}(\mathbf{x} | \mathbf{z}_{t-1}) \| q_{\phi}(\mathbf{z}_{t} | \mathbf{z}_{t-1})\ q_{\phi}(\mathbf{x} | \mathbf{z}_{t-1}) \right] \\
+    &amp;= D_{\mathrm{KL}}\left[ q_{\phi}(\mathbf{z}_{t} | \mathbf{z}_{t-1})\ q_{\phi}(\mathbf{x} | \mathbf{z}_{t-1}) \| q_{\phi}(\mathbf{z}_{t} | \mathbf{z}_{t-1})\ q_{\phi}(\mathbf{x} | \mathbf{z}_{t-1}) \right] \\
+    &amp;= 0 ,
+\end{align}<p>where we used the property of the stochastic structure, i.e., $q(\mathbf{z}_{t} | \mathbf{x}, \mathbf{z}_{t-1}) = q(\mathbf{z}_{t} | \mathbf{z}_{t-1})$. We will look into this result in the next post as well.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Now, we can look into our hypothesis formulated earlier about latent variable models, namely, <em>to successfully learn a latent variable model with variational inference, one needs to define such a family of variational distributions for which the mutual information between latents and observables is not minimized</em>. In the case of diffusion-based models, we achieve exactly that! By formulating variational posteriors in a very specific manner, i.e., the Gaussian diffusion, the mutual information terms are not optimized at all. One may immediately say that it is not the only component that matters here and makes these models so successful; it is true. However, by not minimizing the mutual information terms, we force the optimization procedure to further minimize the reconstruction error, and minimize the Kullback-Leibler terms. This is precisely what we want to achieve! On one hand, the reconstructions should be as good as possible; on the other hand, each Kullback-Leibler term should be as small as possible (in the case of diffusion-based models, this corresponds to removing Gaussian noise).</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>The next question is whether fulfilling the hypothesis alone is enough to learn a successful latent variable model. Obviously it is not true either because, trivially, we need to optimize the other terms. Thus, another important topic is the parameterization of the backward diffusion. The fashion we parameterize the model will result in a better or worse performance in the end. However, from the optimization perspective though, the objective function is extremely important and, as mentioned above, now the optimizer focuses entirely on the reconstruction error and the Kullback-Leibler term. This is the strength of the diffusion-based models!</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>It seems that training a latent variable model by applying variational inference could be challenging. Moreover, it is rather apparent that treating latent variables as a data representation and using variational inference for this purpose make little sense. The mutual information in the ELBO clearly indicates that the goal is the very opposite: Make the stochastic dependency between $\mathbf{x}$ and $\mathbf{z}$ as small as possible! I think we can all agree that this statement has clearly nothing in common with representation learning.</p>
+<p>At this point, one could question whether there is any sense in using latent variables with or even without variational inference. However, we know that models like (hierarchical) Variational Auto-Encoders or diffusion-based models do work. Therefore, instead, we should ask the following questions:</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Self-supervised perspective</strong> There is also another interesting perspective that is very specific to diffusion-based model. Since it is possible to analytically calculate $q_{\phi}(\mathbf{z}_{t}|\mathbf{x})$ and $q_{\phi}(\mathbf{z}_{t}|\mathbf{z}_{t+1}, \mathbf{x})$ due to Gaussianity and linearity (see \cite{ho2020denoising} for details), we can express the ELBO as follows:</p>
+\begin{align}
+   \mathbb{E}_{\mathbf{x} \sim p_{\mathrm{data}} (\mathbf{x})}\left[ \ln p_{\mathrm{model}} (\mathbf{x}) \right] &amp;\geq \mathrm{RE}(\phi, \theta) - \sum_{t=1}^{T-1} \mathbb{E}_{q(\mathbf{z}_{t}, \mathbf{x})} \left[D_{\mathrm{KL}}\left[  q_{\phi}(\mathbf{z}_t | \mathbf{z}_{t+1}, \mathbf{x}) \| p_{\lambda}(\mathbf{z}_{t} | \mathbf{z}_{t+1}) \right]\right] + \\
+   &amp;\ - \mathbb{E}_{q(\mathbf{z}_{T}, \mathbf{x})} \left[D_{\mathrm{KL}}\left[  q_{\phi}(\mathbf{z}_T | \mathbf{x}) \| p_{\lambda}(\mathbf{z}_{T}) \right]\right] .
+\end{align}
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Now, it is possible to easily sample $\mathbf{z}_t$ because we know the analytical form of $q_{\phi}(\mathbf{z}_{t}|\mathbf{x})$, which is again Gaussian. Moreover, we can express $q_{\phi}(\mathbf{z}_{t}|\mathbf{z}_{t+1}, \mathbf{x})$ in a closed form, so every $D_{\mathrm{KL}}$ term could be calculated analytically as well (due to Gaussianity). As a result, as mentioned by \cite{ho2020denoising}, it is possible to sample $t$ and optimize the ELBO stochastically, without the necessity of optimizing all $T$ steps. Why this is useful? Because it could be seen as self-supervised learning! For given $\mathbf{x}$, we can obtain its noisy version $\mathbf{z}_t$, and then we learn how to remove this noise by optimizing $D_{\mathrm{KL}}$ at the $(t-1)$-th level. In other words, we take the original image, select how much noise we want to add (this is equivalent to selecting $t$), and then learn a model to remove a bit of this noise (i.e., going from $\mathbf{z}_{t+1}$ to $\mathbf{z}_{t}$). In this setup, noisy pixels at the $t$-th level could be seen as labels for the \textit{more} noisy pixels at the $(t+1)$-th level.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>The self-supervised learning perspective is not necessarily connected with the discussed hypothesis, and it is rather a \textit{post factum} observation. Besides, there are many facets of self-supervised learning, hence, it is arguable whether that is the main reason why diffusion-based models work so well. Nevertheless, the choice of the family of variational distributions that results in the diffusion-based model is definitely important if not essential even.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="References">References<a class="anchor-link" href="#References">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>(Ho et al., 2020) Ho, J., Jain, A., &amp; Abbeel, P. (2020). Denoising diffusion probabilistic models. Advances in Neural Information Processing Systems, 33, 6840-6851.</p>
+<p>(Kingma et al., 2021) Kingma, D., Salimans, T., Poole, B., &amp; Ho, J. (2021). Variational diffusion models. Advances in neural information processing systems, 34, 21696-21707.</p>
+<p>(Nichol &amp; Dhariwal, 2021) Nichol, A. Q., &amp; Dhariwal, P. (2021, July). Improved denoising diffusion probabilistic models. In International Conference on Machine Learning (pp. 8162-8171). PMLR.</p>
+<p>(Ramesh et al., 2022) Ramesh, A., Dhariwal, P., Nichol, A., Chu, C., &amp; Chen, M. (2022). Hierarchical text-conditional image generation with clip latents. arXiv preprint arXiv:2204.06125.</p>
+<p>(Saharia et al., 2022) Saharia, C., Chan, W., Saxena, S., Li, L., Whang, J., Denton, E., ... &amp; Norouzi, M. (2022). Photorealistic Text-to-Image Diffusion Models with Deep Language Understanding. arXiv preprint arXiv:2205.11487.</p>
+<p>(Sohl-Dickstein et al., 2015) Sohl-Dickstein, J., Weiss, E., Maheswaranathan, N., &amp; Ganguli, S. (2015, June). Deep unsupervised learning using nonequilibrium thermodynamics. In International Conference on Machine Learning (pp. 2256-2265). PMLR.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong><em>Acknowledgements</em></strong></p>
+<p><em>I would like to thank <a href="https://akuzina.github.io/" target="_blank">Anna Kuzina</a> for fruitful discussions.</em></p>
+
+</div>
+</div>
+</div>
+    </div>
+  </div>
+</body>
+
+
+
+
+
+
+
+</html>
