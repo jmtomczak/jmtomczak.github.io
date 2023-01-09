@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" />
+
+<title>Deep Generative Modeling</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+<!-- MUST INCLUDE TO PROPERLY ADD HEADER! -->
+<link rel="stylesheet" type="text/css" media="screen" href="../../css/main.css" />
+<link rel="stylesheet" type="text/css" media="screen" href="blog/blog.css" />
+
+<!-- Loading mathjax macro -->
+<!-- Load mathjax -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_HTML"></script>
+    <!-- MathJax configuration -->
+    <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+        tex2jax: {
+            inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+            displayMath: [ ['$$','$$'], ["\\[","\\]"] ],
+            processEscapes: true,
+            processEnvironments: true
+        },
+        // Center justify equations in code and markdown cells. Elsewhere
+        // we use CSS to left justify single line equations in code cells.
+        displayAlign: 'center',
+        "HTML-CSS": {
+            styles: {'.MathJax_Display': {"margin": 0}},
+            linebreaks: { automatic: true }
+        }
+    });
+    </script>
+    <!-- End of mathjax configuration --></head>
+<body>
+
+  <div tabindex="-1" id="notebook" class="border-box-sizing">
+    <div class="container" id="notebook-container">
+
+<div id="header">
+
+</div>
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+	<table>
+	  <tr>
+	    <td style="width: 300px; text-align: left"><b>Title</b>: Deep Generative Modeling<br><br>
+			<b>Author</b>: Jakub M. Tomczak<br><br>
+			<b>DOI</b>: <a href='https://doi.org/10.1007/978-3-030-93158-2' target="_blank">https://doi.org/10.1007/978-3-030-93158-2</a><br><br>
+			<b>Publisher</b>: Springer Cham<br><br>
+			<b>Code</b>: <a href='https://github.com/jmtomczak/intro_dgm' target="_blank">github</a>
+		</td>
+	    <td style="width: 400px;"><img src='assets/img/deep_generative_modeling_book_for_covers.jpg' width='100%'></td>
+	  </tr>
+	</table>
+<div class="text_cell_render border-box-sizing rendered_html">
+	
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="about-this-book">About the book<a class="anchor-link" href="#about-this-book">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>This textbook tackles the problem of formulating AI systems by combining probabilistic modeling and deep learning. Moreover, it goes beyond typical predictive modeling and brings together supervised learning and unsupervised learning. The resulting paradigm, called deep generative modeling, utilizes the generative perspective on perceiving the surrounding world. It assumes that each phenomenon is driven by an underlying generative process that defines a joint distribution over random variables and their stochastic interactions, i.e., how events occur and in what order. The adjective "deep" comes from the fact that the distribution is parameterized using deep neural networks. There are two distinct traits of deep generative modeling. First, the application of deep neural networks allows rich and flexible parameterization of distributions. Second, the principled manner of modeling stochastic dependencies using probability theory ensures rigorous formulation and prevents potential flaws in reasoning. Moreover, probability theory provides a unified framework where the likelihood function plays a crucial role in quantifying uncertainty and defining objective functions.<br><br>
+
+Deep Generative Modeling is designed to appeal to curious students, engineers, and researchers with a modest mathematical background in undergraduate calculus, linear algebra, probability theory, and the basics in machine learning, deep learning, and programming in Python and PyTorch (or other deep learning libraries). It will appeal to students and researchers from a variety of backgrounds, including computer science, engineering, data science, physics, and bioinformatics, who wish to become familiar with deep generative modeling. To engage the reader, the book introduces fundamental concepts with specific examples and code snippets. The full code accompanying the book is available on <a href='https://github.com/jmtomczak/intro_dgm' target="_blank">github</a>.<br><br>
+
+The ultimate aim of the book is to outline the most important techniques in deep generative modeling and, eventually, enable readers to formulate new models and implement them.</p>
+
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="toc">Table of contents<a class="anchor-link" href="#toc">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>
+	<dl>
+		<dt>Front matter</dt> 
+		<dd>Foreword by <a href="https://scholar.google.com/citations?user=8200InoAAAAJ&hl=en" target="_blank">Prof. Max Welling</a></dd>
+		<dd>Preface</dd>
+	</dl>
+	<dl>
+		<dt>Chapters</dt>
+		<dd>1. Why Deep Generative Modeling?</dd>
+		<dd>2. Autoregressive Models</dd>
+		<dd>3. Flow-Based Models</dd>
+		<dd>4. Latent Variable Models</dd>
+		<dd>5. Hybrid Modeling</dd>
+		<dd>6. Energy-Based Models</dd>
+		<dd>7. Generative Adversarial Networks</dd>
+		<dd>8. Deep Generative Modeling for Neural Compression</dd>
+	</dl>
+	<dl>
+		<dt>Appendix:</dt>
+		<dd>A. Useful Facts from Algebra and Calculus</dd>
+		<dd>B. Useful Facts from Probability Theory and Statistics</dd>
+	</dl>
+	<dl>
+		<dt>Code accompanying the book:</dt>
+		<dd><a href='https://github.com/jmtomczak/intro_dgm' target="_blank">Github</a></dd>
+	</dl>
+</p>
+
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="availability">Availability<a class="anchor-link" href="#availability">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>
+	<dl>
+		<dt>The book is available at:</dt> 
+		<dd><a href="https://link.springer.com/book/10.1007/978-3-030-93158-2" target="_blank">Springer</a></dd>
+		<dd><a href="https://www.amazon.com/Deep-Generative-Modeling-Jakub-Tomczak/dp/3030931579" target="_blank">Amazon</a></dd>
+		<dd><a href="https://www.bol.com/nl/nl/p/deep-generative-modeling/9300000066804521/?bltgh=n-gBYwJf79j-dnwDt6pBuQ.2_6.7.ProductTitle" target="_blank">Bol.com</a></dd>
+	</dl>
+</p>
+
+</div>
+</div>
+</div>
+
+    </div>
+  </div>
+</body>
+
+ 
+
+
+</html>
