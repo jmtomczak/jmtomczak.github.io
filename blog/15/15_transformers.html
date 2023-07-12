@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>15_transformers</title><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+
+
+<!-- MUST INCLUDE TO PROPERLY ADD HEADER! -->
+<link rel="stylesheet" type="text/css" media="screen" href="../../css/main.css" />
+<link rel="stylesheet" type="text/css" media="screen" href="../blog.css" />
+
+<!-- Loading mathjax macro -->
+<!-- Load mathjax -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_HTML"></script>
+    <!-- MathJax configuration -->
+    <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+        tex2jax: {
+            inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+            displayMath: [ ['$$','$$'], ["\\[","\\]"] ],
+            processEscapes: true,
+            processEnvironments: true
+        },
+        // Center justify equations in code and markdown cells. Elsewhere
+        // we use CSS to left justify single line equations in code cells.
+        displayAlign: 'center',
+        "HTML-CSS": {
+            styles: {'.MathJax_Display': {"margin": 0}},
+            linebreaks: { automatic: true }
+        }
+    });
+    </script>
+    <!-- End of mathjax configuration --></head>
+<body>
+  <div tabindex="-1" id="notebook" class="border-box-sizing">
+    <div class="container" id="notebook-container">
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="Transformers">ARMs parameterized by Transformers<a class="anchor-link" href="#ARMs parameterized by Transformers">&#182;</a></h1>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Background-on-Diffusion-based-Models">Introduction<a class="anchor-link" href="#Introduction">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>As presented previously, the idea behind autoregressive models (ARMs) is relatively simple since it utilizes the product rule multiple times to factorize the joint distribution, namely:
+$$
+p(\mathbf{x}) = \left( \prod_{d=1}^{D} p(x_d | \mathbf{x}_{&lt;d}) \right) \ p(x_1) ,
+$$
+where $\mathbf{x}_{&lt;d} = [x_1, x_2, \ldots, x_{d-1}]$.</p>
+<p>We highlighted that the whole difficulty in parameterizing such a model lies in having a flexible model that can <em>easily</em> deal with conditionals $ p(x_d | \mathbf{x}_{&lt;d})$. By <em>easily</em> we mean having a single model that outputs probabilities for whatever the inputs $\mathbf{x}_{&lt;d}$ are. In general, it is a non-trivial requirement.
+s
+However, we showed that parameterizing ARMs using neural networks could help us in this task. Particularly <strong>causal convolutions</strong> can greatly simplify the implementation of conditional distributions and, additionally, they can speed up calculations by computing the conditional probability for a given $\mathbf{x}$ in a single forward pass. Moreover, they allow learning long-range dependencies! This last feature is incredibly important for modeling such complex objects as images. Do we need more? Are we done?</p>
+<p>In some way, the answer is ''yes''. Autoregressive models parameterized by causal convolutions are extremely powerful, and they had set SOTA performance on many tasks for a long time! However, a curious researcher cannot simply accept that a problem is solved and stop looking further. Especially when there is a new sheriff in town: the <strong>attention mechanism</strong>! Originally, attention was utilized in neural machine translation (Bahdanau et al., 2014; Luong et al., 2015), but later was applied to processing sets of images (Ilse et al., 2018), among many other applications. In general, it has been noticed that convolutional layers operate on a fixed grid of neighbors while in NLP there are irregular connections among words. For instance, Dutch grammar requires placing words in a specific order, while Polish grammar is much more flexible. As a result, using a pre-defined neighborhood seems to be highly limiting and the attention mechanism, which allows <em>learning</em> long-range connections, looks like a much better approach. The idea of the attention mechanism was further extended for processing sets and sequences in the seminal paper of (Vaswani et al., 2017) that introduced <strong>transformers</strong>, an architecture built of three core components: attention layers, fully-connected layers, and layer normalization. Dropout could be useful too, and other tricks as well (after all, it's deep learning, tricks, and hacks are everything!), but these three elements are crucial and they have changed the game in many applications (especially in NLP). Let's dive into the world of transformers and how they could be used for parameterizing ARMs!</p>
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Transformers,-because-attention-is-all-you-need!">Transformers, because attention is all you need!<a class="anchor-link" href="#Transformers,-because-attention-is-all-you-need!">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>As the title of (Vaswani et al., 2017) claimed, ''attention is all you need''. As already mentioned, the attention mechanism could be thought of as some sort of <em>generalization</em> of convolutional layers. Assuming for a second that it is the case, then indeed we should be able to build neural networks by using the attention mechanism alone, thus, attention is the only component we need. Well, as we will see shortly, it is not entirely true, but almost.</p>
+
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h4 id="Self-attention">Self-attention<a class="anchor-link" href="#Self-attention">&#182;</a></h4>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>The attention mechanism, and the <strong>self-attention</strong> mechanism specifically, constitute the core of many architectures, and transformers are based on them. How this is defined then? To better understand how self-attention works, please keep in mind that kernels in convolutional layers move along an object (e.g., a sequence, an image) and calculate responses (outputs) based on a fixed neighborhood. In self-attention, however, we will learn about this neighborhood. Moreover, similarly to multiple kernels in CNNs, we can have multiple versions of self-attention, called <strong>heads</strong> (thus, <strong>multi-head self-attention</strong>).</p>
+<p>First, we focus on <strong>single-head self-attention</strong>, because extending it to multiple heads is really straightforward. In all of our discussions, we will assume that we have well-prepared data. This means we assume having a <strong>tokenizer</strong> that takes an input (e.g., a text, a molecule, an image) and returns a tensor $\mathbf{X} \in \mathcal{X}^{B \times T \times D}$, where $B$ - the batch size, $T$ - the number of tokens (e.g., characters in a sentence), $D$ - the dimensionality of an embedding of a token, which could be further processed by any contemporary neural networks. Formulating a tokenizer is an extremely important element of the whole system and it could be thought of as a featurizer or a pre-processing step. A lot of the success of an AI system based on transformers comes from the fact of a powerful tokenizer. But going back to our train of thought, we assume we have a tokenizer, and later on, we will briefly discuss one for molecules.</p>
+<p>Alright, self-attention then! In fact, self-attention is very simple and requires the basic knowledge of matrix calculus or, in terms of deep learning, the knowledge of how linear layers work. It works in the following way: We first transform $\mathbf{X}$ using linear layers to obtain three new tensors: <strong>values</strong>, <strong>keys</strong>, and <strong>queries</strong>, namely (to be consistent with code, we introduce $\otimes$ to denote batch matrix multiplication, i.e., a for-loop over the batch dimension and applying matrix multiplication to each element in a batch; this is equivalent to the <code>bmm</code> function in PyTorch):</p>
+<ul>
+<li>values: $\mathbf{V} = \mathbf{X} \otimes \mathbf{W}_{v} + \mathbf{b}_{v}$;</li>
+<li>keys: $\mathbf{K} = \mathbf{X} \otimes \mathbf{W}_{k} + \mathbf{b}_{k}$;</li>
+<li>queries: $\mathbf{Q} = \mathbf{X} \otimes \mathbf{W}_{q} + \mathbf{b}_{q}$.</li>
+</ul>
+<p><em>A side note</em>: To get a good feeling about the batch matrix multiplication $\otimes$. For a tensor $\mathbf{X}$ of size $B \times T \times D$ (or in PyTorch or Numpy: <code>X.shape = (B, T, D)</code>), and a matrix $\mathbf{W}$ of size $D \times M$, the resulting tensor of $\mathbf{X} \otimes \mathbf{W}$ is of size $B \times T \times M$. In other words, the operation $\otimes$ calculates the matrix multiplication of $\mathbf{X}_{b} \mathbf{W}$ for $b=1, 2, \ldots, B$ and then concatenates all outputs. If $\mathbf{W}$ is a tensor $B \times D \times M$, then we concatenate all outputs $\mathbf{X}_{b} \mathbf{W}_{b}$ for $b=1, 2, \ldots, B$.</p>
+<p>Since we talk about <strong>self</strong>-attention, we transform the same input $\mathbf{X}$. However, in general, we are not constrained to do that. In fact, the idea of attention is highly influenced by information retrieval, hence the names of the three tensors. For instance, a search text is mapped to queries, then the information in a database is mapped to keys, and the best-matched objects are values. Then the attention mechanism could be thought of as a retrieval system. It might be confusing, therefore, it is enough to say that we call the three linear layers by these names and that's it.</p>
+<p>Once we apply these linear transformations to $\mathbf{X}$, we can move on to the core of the self-<strong>attention</strong>, namely, <strong>attention weights</strong>, $\mathbf{A} \in [0,1]^{B \times T \times T}$. Attention weights define the strengths of connections (relations) among tokens. In some way, we can think of $\mathbf{A}$ as a soft adjacency matrix of a graph that determines edges and their strengths. Thus my claim before about a possible advantage of self-attention over convolutional layers because they can learn long-range dependencies without stacking multiple layers. We can define attention weights in the following manner:</p>
+$$
+\mathbf{A} = \mathrm{softmax}(\mathbf{Q} \otimes \mathbf{K}^{\top}),
+$$<p>where $\mathrm{softmax}$ is calculated over the last dimension (i.e., 2), and the transposition is applied to the first dimension and the second dimension (in PyTorch: <code>X.transpose(1, 2)</code>). Additionally, to counteract possible large magnitudes in calculating the matrix multiplication, the argument of the softmax is scaled by the square root of the dimension $D$, namely:</p>
+$$
+\mathbf{A} = \mathrm{softmax}\left(\frac{\mathbf{Q} \otimes \mathbf{K}^{\top}}{\sqrt{D}}\right) .
+$$<p>Lastly, to get the outputs of the self-attention, we have to multiply values and attention weights (scaling is used almost always by default):
+$$
+\mathbf{Y} = \mathrm{softmax}\left(\frac{\mathbf{Q} \otimes \mathbf{K}^{\top}}{\sqrt{D}}\right) \otimes \mathbf{V} ,
+$$
+and $\mathbf{Y}$ is of size $B \times T \times D$. If you do not see it, please go through all the steps again. The whole procedure is schematically presented in Figure 1.</p>
+
+<p><img src="convolutions_vs_attention.svg" width="900"></p>
+<p><strong>Figure 1.</strong> A schematic representation of self-attention.</p>
+
+<p>At this point, we know how self-attention works! Moreover, in Figure 1, we have a diagram of all operations and it is basically ready to be translated to code! The only missing piece of the puzzle is multiple heads. How do we define it? Well, it is really simple: We define self-attention $H$-times, $\mathbf{Y}_h = \mathrm{softmax}\left(\frac{\mathbf{Q}_h \otimes \mathbf{K}_h^{\top}}{\sqrt{D}}\right) \otimes \mathbf{V}$, where index $h$ indicates a separate set of weights, and then concatenate them along the first dimension, $\mathbf{Y} = \mathbf{Y}_1 \oplus \ldots \oplus \mathbf{Y}_H$, where $\oplus$ denotes the concatenation, that gives $\mathbf{Y} \in \mathbb{R}^{B \times T \times H \cdot D}$. Eventually, we multiply $\mathbf{Y}$ with a matrix of weights $\mathbf{W}_c \in \mathbb{R}^{H \cdot D \times D}$ that yields the output of multi-head self-attention:</p>
+$$
+\mathbf{M} = \mathbf{Y} \otimes \mathbf{W}_c .
+$$<p>Now we are really done! It wasn't so difficult, wasn't it? It's all about linear layers! So one may ask what's the whole fuzz about? Again, the brilliancy of self-attention comes from the fact that we learn the soft adjacency matrix $\mathbf{A}$. It allows the model to <em>figure out</em> how some quantities are related to each other, and using a single step it learns long-range dependencies. I like to think of attention as some sort of learning <em>knowledge graph</em>. I know, it is far-fetched, but if you think about it, a single multi-head self-attention determines patterns in input data (each head is a set of concepts), and then, by stacking multiple multi-head self-attentions we obtain high-level patterns in data. You must say, my curious reader, that it is fantastic in its simplicity!</p>
+
+</div>
+</div>
+</div>
+
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h4 id="Finally-some-code!">Finally some code!<a class="anchor-link" href="#Finally-some-code!">&#182;</a></h4>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>The way we presented self-attention was very close to the code. However, to implement self-attention we can use a few simple tricks to speed up computations. The most important one is about calculating keys, queries, and values. We do not need to define separate single-head self-attentions; instead, we can define linear layers that output $D \times H$ outputs and then we can just reshape tensors to $B \times T \times H \times D$ for batch matrix multiplication.</p>
+<p>The full code is presented below.</p>
+
+</div>
+</div>
+</div>
+
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+     <div class="CodeMirror cm-s-jupyter">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">MultiHeadSelfAttention</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_emb</span><span class="p">,</span> <span class="n">num_heads</span><span class="o">=</span><span class="mi">8</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        
+        <span class="c1"># hyperparams</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">D</span> <span class="o">=</span> <span class="n">num_emb</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">H</span> <span class="o">=</span> <span class="n">num_heads</span>
+        
+        <span class="c1"># weights for self-attention</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">w_k</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">D</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">w_q</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">D</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">w_v</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">D</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span><span class="p">)</span>
+        
+        <span class="c1"># weights for a combination of multiple heads</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">w_c</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">D</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">)</span>
+            
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">causal</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="c1"># x: B(atch) x T(okens) x D(imensionality)</span>
+        <span class="n">B</span><span class="p">,</span> <span class="n">T</span><span class="p">,</span> <span class="n">D</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">size</span><span class="p">()</span>
+        
+        <span class="c1"># keys, queries, values</span>
+        <span class="n">k</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">w_k</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="n">T</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span><span class="p">,</span> <span class="n">D</span><span class="p">)</span> <span class="c1"># B x T x H x D</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">w_q</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="n">T</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span><span class="p">,</span> <span class="n">D</span><span class="p">)</span> <span class="c1"># B x T x H x D</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">w_v</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="n">T</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span><span class="p">,</span> <span class="n">D</span><span class="p">)</span> <span class="c1"># B x T x H x D</span>
+        
+        <span class="n">k</span> <span class="o">=</span> <span class="n">k</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">B</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span><span class="p">,</span> <span class="n">T</span><span class="p">,</span> <span class="n">D</span><span class="p">)</span> <span class="c1"># B*H x T x D</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">B</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span><span class="p">,</span> <span class="n">T</span><span class="p">,</span> <span class="n">D</span><span class="p">)</span> <span class="c1"># B*H x T x D</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">B</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span><span class="p">,</span> <span class="n">T</span><span class="p">,</span> <span class="n">D</span><span class="p">)</span> <span class="c1"># B*H x T x D</span>
+        
+        <span class="n">k</span> <span class="o">=</span> <span class="n">k</span> <span class="o">/</span> <span class="p">(</span><span class="n">D</span><span class="o">**</span><span class="mf">0.25</span><span class="p">)</span> <span class="c1"># scaling </span>
+        <span class="n">q</span> <span class="o">=</span> <span class="n">q</span> <span class="o">/</span> <span class="p">(</span><span class="n">D</span><span class="o">**</span><span class="mf">0.25</span><span class="p">)</span> <span class="c1"># scaling</span>
+        
+        <span class="c1"># kq</span>
+        <span class="n">kq</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">bmm</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">k</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span> <span class="c1"># B*H x T x T</span>
+        
+        <span class="c1"># if causal</span>
+        <span class="k">if</span> <span class="n">causal</span><span class="p">:</span>
+            <span class="n">mask</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">triu_indices</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">T</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">kq</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">mask</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">mask</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;-inf&#39;</span><span class="p">)</span>
+        
+        <span class="c1"># softmax</span>
+        <span class="n">skq</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="n">kq</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+        
+        <span class="c1"># self-attention</span>
+        <span class="n">sa</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">bmm</span><span class="p">(</span><span class="n">skq</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="c1"># B*H x T x D</span>
+        <span class="n">sa</span> <span class="o">=</span> <span class="n">sa</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span><span class="p">,</span> <span class="n">T</span><span class="p">,</span> <span class="n">D</span><span class="p">)</span> <span class="c1"># B x H x T x D</span>
+        <span class="n">sa</span> <span class="o">=</span> <span class="n">sa</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="c1"># B x T x H x D</span>
+        <span class="n">sa</span> <span class="o">=</span> <span class="n">sa</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="n">T</span><span class="p">,</span> <span class="n">D</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span><span class="p">)</span> <span class="c1"># B x T x D*H</span>
+        
+        <span class="n">out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">w_c</span><span class="p">(</span><span class="n">sa</span><span class="p">)</span> <span class="c1"># B x T x D</span>
+        
+        <span class="k">return</span> <span class="n">out</span>
+</pre></div>
+
+     </div>
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Causal computations</strong>. Is everything clear? It should be! But wait, what is this flag <code>causal</code>? Yes, you are right, my careful reader, we did not discuss it at all, but after all, we want to use self-attention as a replacement for <strong>causal</strong> convolutional layers! To be able to parameterize ARMs with self-attention, we need to ensure that we do not look into the future. Fortunately, it is very simple to achieve in self-attention, namely, we need to <strong>mask out</strong> the multiplication of keys and queries to ensure causal calculations. For instance, assuming that the first token is <em>dummy</em> (i.e., it corresponds to the Beginning Of Sequence, BOS), we mask values above the diagonal of the product of keys and queries. Then we ensure that there is no <em>leakage</em> of future tokens in the attention weights.</p>
+<p><strong>Positional encodings</strong>. Another point that you probably noticed, my bright reader, is that if we want to apply self-attention to sequences, we must ensure that we are not permutation equivariant. Yes, self-attention is permutation equivariant which means that permuting input tokens results in permuting (in the same way) output tokens. To prevent this, typically position information is added to $\mathbf{X}$. The simplest approach is to encode absolute positions using an embedding layer (i.e., each integer is represented by a real-valued vector). This <strong>positional encoding</strong>, $\mathbf{P}$, is then added to inputs, namely, $\mathbf{X} + \mathbf{P}$. Now, by adding $\mathbf{P}$, we destroy permutation equivariance.</p>
+
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h4 id="A-transformer-block:-Putting-all-together">A transformer block: Putting all together<a class="anchor-link" href="#A-transformer-block:-Putting-all-together">&#182;</a></h4>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>As we can imagine, transformers like any other deep learning architectures consist of simpler building components called <strong>transformer blocks</strong>. A single transformer block consists of the following operations:</p>
+<ul>
+<li>A multi-head self-attention: $f_{mhsa}(\mathbf{X}) = \mathbf{Y} \otimes \mathbf{W}_c$, where $\mathbf{Y} = \mathbf{Y}_1 \oplus \ldots \oplus \mathbf{Y}_H$ and $\mathbf{Y}_h = \mathbf{V}_h \otimes \mathrm{softmax}\left(\frac{\mathbf{Q}_h \otimes \mathbf{K}_h^{\top}}{\sqrt{D}}\right)$.</li>
+<li>Layer Normalization: $f_{ln}(\mathbf{X}) = \gamma \frac{\mathbf{X} - \mathbf{m}}{\mathbf{s}+\epsilon} + \delta$, where all parameters, i.e., $\mathbf{m}, \mathbf{s}, \gamma, \delta$ are calculated per layer (not batch!), and $\epsilon &gt; 0$ is to ensure numerical stability.</li>
+<li>MLP (an example architecture we used in the code later on): $f_{mlp}(\mathbf{X}) = linear(GELU(linear(\mathbf{X}))$.</li>
+</ul>
+<p>Now, a single transformer block calculates output tokens in the following manner:
+\begin{align}
+1.\ &amp; \mathbf{M} = f_{mhsa}(\mathbf{X}) \\
+2.\ &amp; \mathbf{U} = f_{ln1}(\mathbf{X} + \mathbf{M})\\
+3.\ &amp; \mathbf{Z} = f_{mlp}(\mathbf{U})\\
+4.\ &amp; \mathbf{X} = f_{ln2}(\mathbf{Z} + \mathbf{U})
+\end{align}</p>
+<p>The code for an example of a transformer block is presented below.</p>
+
+</div>
+</div>
+</div>
+
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+     <div class="CodeMirror cm-s-jupyter">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">TransformerBlock</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_emb</span><span class="p">,</span> <span class="n">num_neurons</span><span class="p">,</span> <span class="n">num_heads</span><span class="o">=</span><span class="mi">4</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        
+        <span class="c1"># hyperparams</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">D</span> <span class="o">=</span> <span class="n">num_emb</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">H</span> <span class="o">=</span> <span class="n">num_heads</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">neurons</span> <span class="o">=</span> <span class="n">num_neurons</span>
+        
+        <span class="c1"># components</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">msha</span> <span class="o">=</span> <span class="n">MultiHeadSelfAttention</span><span class="p">(</span><span class="n">num_emb</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">,</span> <span class="n">num_heads</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">H</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">layer_norm1</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">LayerNorm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">layer_norm2</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">LayerNorm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">mlp</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">neurons</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">),</span>
+                                <span class="n">nn</span><span class="o">.</span><span class="n">GELU</span><span class="p">(),</span>
+                                <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">neurons</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">))</span>
+    
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">causal</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="c1"># Multi-Head Self-Attention</span>
+        <span class="n">x_attn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">msha</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">causal</span><span class="p">)</span>
+        <span class="c1"># LayerNorm</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">layer_norm1</span><span class="p">(</span><span class="n">x_attn</span> <span class="o">+</span> <span class="n">x</span><span class="p">)</span>
+        <span class="c1"># MLP</span>
+        <span class="n">x_mlp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mlp</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="c1"># LayerNorm</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">layer_norm2</span><span class="p">(</span><span class="n">x_mlp</span> <span class="o">+</span> <span class="n">x</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="n">x</span>
+</pre></div>
+
+     </div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Layer Normalization</strong> The rationale behind using Layer Normalization is twofold. First, it parallelizes better than batch normalization and it is typically preferred in NLP applications. Second, as discussed in-depth in (Xiong et al., 2020), using layer normalization plays a crucial role in controlling gradient scales. As a result, layer normalization is essential for proper training of transformers.</p>
+
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Implementing-transformers-(finally)!">Implementing transformers (finally)!<a class="anchor-link" href="#Implementing-transformers-(finally)!">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Remarks.</strong> Now, having a piece of code for the transformer block, we are ready to put all pieces together and define a transformer architecture. In the code below, we use the following:</p>
+<ul>
+<li>We assume that inputs (i.e., tokens) are integers (but the order plays no role), and the first token is "dummy" (i.e., it only indicates the beginning of a sequence).</li>
+<li>We use an embedding layer to turn input integers into real-valued vectors. We use another embedding layer for positional encoding. Both embedding layers are learnable.</li>
+<li>Before applying transformer blocks, we use a dropout layer with the dropping probability equal to $0.1$. This forces the model to cope with missing tokens. In many transformer architectures, dropout is used in all transformer blocks. To keep our code simple, we do not follow this trend.</li>
+<li>We assume that tokens are represented by integers, but please keep in mind that the order is not important. As a result, we use categorical distribution to model all conditionals $p(x_t | \mathbf{x}_{&lt;t})$. As a result, our objective is a sum of conditional likelihoods defined by categorical distributions.</li>
+<li>Since the first token is "dummy", we need to remember to shift the outputs of the transformer and disregard the first input for calculating the loss function.</li>
+</ul>
+<p><strong>Sampling.</strong> We must remember that we use transformers here to parameterize ARMs. As a result, the sampling procedure is very similar to ARMs with causal convolutions, namely, we have a for-loop that starts with a sequence with the "dummy" token, and samples one token at a time.</p>
+<p>Below, you can find the full code for a transformer architecture.</p>
+
+</div>
+</div>
+</div>
+
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+     <div class="CodeMirror cm-s-jupyter">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">Transformer</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_tokens</span><span class="p">,</span> <span class="n">num_token_vals</span><span class="p">,</span> <span class="n">num_emb</span><span class="p">,</span> <span class="n">num_neurons</span><span class="p">,</span> <span class="n">num_heads</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">dropout_prob</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">num_blocks</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cpu&#39;</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        
+        <span class="c1"># Remember, always credit the author, even if it&#39;s you ;)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Transformer by JT.&#39;</span><span class="p">)</span>
+        
+        <span class="c1"># hyperparams</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">device</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_tokens</span> <span class="o">=</span> <span class="n">num_tokens</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_token_vals</span> <span class="o">=</span> <span class="n">num_token_vals</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_emb</span> <span class="o">=</span> <span class="n">num_emb</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_blocks</span> <span class="o">=</span> <span class="n">num_blocks</span>
+        
+        <span class="c1"># embedding layer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">embedding</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Embedding</span><span class="p">(</span><span class="n">num_token_vals</span><span class="p">,</span> <span class="n">num_emb</span><span class="p">)</span>
+        
+        <span class="c1"># positional embedding</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">positional_embedding</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Embedding</span><span class="p">(</span><span class="n">num_tokens</span><span class="p">,</span> <span class="n">num_emb</span><span class="p">)</span>
+        
+        <span class="c1"># transformer blocks</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">transformer_blocks</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_blocks</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">transformer_blocks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">TransformerBlock</span><span class="p">(</span><span class="n">num_emb</span><span class="o">=</span><span class="n">num_emb</span><span class="p">,</span> <span class="n">num_neurons</span><span class="o">=</span><span class="n">num_neurons</span><span class="p">,</span> <span class="n">num_heads</span><span class="o">=</span><span class="n">num_heads</span><span class="p">))</span>
+        
+        <span class="c1"># output layer (logits + softmax)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logits</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">num_emb</span><span class="p">,</span> <span class="n">num_token_vals</span><span class="p">))</span>
+        
+        <span class="c1"># dropout layer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dropout</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Dropout</span><span class="p">(</span><span class="n">dropout_prob</span><span class="p">)</span>
+        
+        <span class="c1"># loss function</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loss_fun</span> <span class="o">=</span> <span class="n">LossFun</span><span class="p">()</span>
+        
+    <span class="k">def</span> <span class="nf">transformer_forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">causal</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
+        <span class="c1"># x: B(atch) x T(okens)</span>
+        <span class="c1"># embedding of tokens</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">embedding</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="c1"># B x T x D</span>
+        <span class="c1"># embedding of positions</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="n">pos_emb</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">positional_embedding</span><span class="p">(</span><span class="n">pos</span><span class="p">)</span>
+        <span class="c1"># dropout of embedding of inputs</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dropout</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">pos_emb</span><span class="p">)</span>
+        
+        <span class="c1"># transformer blocks</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_blocks</span><span class="p">):</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transformer_blocks</span><span class="p">[</span><span class="n">i</span><span class="p">](</span><span class="n">x</span><span class="p">)</span>
+        
+        <span class="c1"># output logits</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">logits</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="n">F</span><span class="o">.</span><span class="n">log_softmax</span><span class="p">(</span><span class="n">out</span><span class="o">/</span><span class="n">temperature</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    
+    <span class="nd">@torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
+        <span class="n">x_seq</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([[</span><span class="bp">self</span><span class="o">.</span><span class="n">num_token_vals</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">batch_size</span><span class="p">)])</span>
+
+        <span class="c1"># sample next tokens</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_tokens</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">xx</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">x_seq</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+            <span class="c1"># process x and calculate log_softmax</span>
+            <span class="n">x_log_probs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transformer_forward</span><span class="p">(</span><span class="n">xx</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="n">temperature</span><span class="p">)</span>
+            <span class="c1"># sample i-th tokens</span>
+            <span class="n">x_i_sample</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">multinomial</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">x_log_probs</span><span class="p">[:,</span><span class="n">i</span><span class="p">]),</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+            <span class="c1"># update the batch with new samples</span>
+            <span class="n">x_seq</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">x_seq</span><span class="p">,</span> <span class="n">x_i_sample</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="s1">&#39;cpu&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()),</span> <span class="mi">1</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="n">x_seq</span>
+    
+    <span class="nd">@torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">top1_rec</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">causal</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="n">x_prob</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">transformer_forward</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">causal</span><span class="o">=</span><span class="kc">True</span><span class="p">))[:,:</span><span class="o">-</span><span class="mi">1</span><span class="p">,:]</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+        <span class="n">_</span><span class="p">,</span> <span class="n">x_rec_max</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">x_prob</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">mean</span><span class="p">((</span><span class="n">x_rec_max</span><span class="o">.</span><span class="n">float</span><span class="p">()</span> <span class="o">==</span> <span class="n">x</span><span class="p">[:,</span><span class="mi">1</span><span class="p">:]</span><span class="o">.</span><span class="n">float</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">))</span><span class="o">.</span><span class="n">float</span><span class="p">(),</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">float</span><span class="p">())</span>
+    
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">causal</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="s1">&#39;mean&#39;</span><span class="p">):</span>
+        <span class="c1"># get log-probabilities</span>
+        <span class="n">log_prob</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transformer_forward</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">causal</span><span class="o">=</span><span class="n">causal</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="n">temperature</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">loss_fun</span><span class="p">(</span><span class="n">log_prob</span><span class="p">[:,:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">contiguous</span><span class="p">(),</span> <span class="n">x</span><span class="p">[:,</span><span class="mi">1</span><span class="p">:]</span><span class="o">.</span><span class="n">contiguous</span><span class="p">(),</span> <span class="n">reduction</span><span class="o">=</span><span class="n">reduction</span><span class="p">)</span>
+</pre></div>
+
+     </div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h4 id="Results">Results<a class="anchor-link" href="#Results">&#182;</a></h4>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>In the experiments, we consider the task of learning a generative model for molecules. Interestingly, molecules could be represented as strings (a sequence of atoms and additional characters like brackets, among others) called SMILES (Weininger, 1988). After using a simple tokenizer (e.g., see <a href='https://deepchem.readthedocs.io/en/latest/api_reference/featurizers.html?highlight=basetokenizer#basicsmilestokenizer' target="_blank">BasicSmilesTokenizer</a> in a fantastic library <a href='https://deepchem.io/' target="_blank">DeepChem</a>), we can represent molecules as a sequence of integers, where each integer encodes either an atom or a character needed to represent a structure. The process of representing molecules as SMILES is reversible (i.e., for given SMILEs we can recover a graphical representation), and, similarly, encoding SMILES using integers is also invertible. Moreover, we used a simple dataset of about 7.4K molecules called <a href='https://github.com/deepchem/deepchem/blob/master/datasets/tox21.csv.gz' target="_blank">Tox21</a> that we divided into a training set (6.6k molecules), a validation set (400 molecules), and a test set (a bit more than 400 molecules). We can monitor multiple metrics, but here we focused on two: the value of the negative log-likelihood (nll), and the reconstruction accuracy calculated by taking the most probable outputs of the transformer instead of a sample (rec).</p>
+<p>The full code (with auxiliary functions for training, evaluation, and visualization) is available here: <a href="https://github.com/jmtomczak/intro_dgm" target="_blank">[link]</a>. After running a simple transformer architecture (about 1M weights), you can expect generations similar to those in Figure 2, and validation nll and validation rec in Figure 3. After generating about 2k molecules, about $62\%$ of them were valid SMILES (thus, molecules)!</p>
+<p><img src="transformer_generated_molecules.png" width="500"></p>
+<p><strong>Figure 2.</strong> A sample of valid molecules from a trained transformer.</p>
+<p><strong>A</strong> <img src="transformer_gen_nll_val_curve.png" width="300">
+<strong>B</strong> <img src="transformer_gen_rec_val_curve.png" width="300"></p>
+<p><strong>Figure 3.</strong> Examples of results after running the code: <strong>A</strong>: The negative log-likelihood. <strong>B</strong>: The reconstruction accuracy.</p>
+
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Transformers-consitute-their-own-field-(almost)">Transformers consitute their own field (almost)<a class="anchor-link" href="#Transformers-consitute-their-own-field-(almost)">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Nowadays, transformers are behind many, many successes of Generative AI! Probably you heard about GPT (Generative Pre-Trained Transformer) (Radford et al., 2019) and ChatGPT; yes, they all use transformers. I think it is safe to say that the boom for Generative AI is due to GPT-based models (among others, but they contributed a lot to that!). Since the success of transformers, many researchers use a single term for deep neural networks (mainly transformer-based architectures) in NLP: <strong>Large Language Models</strong> (LLMs). Since LLMs (or other <em>big</em> transformers) are typically first pre-trained, and then finetuned on a downstreak task or a specific data, they are called <strong>foundation models</strong>.</p>
+<p>Let me indicate only a few, really a tiny fraction of interesting reads, because otherwise the list could be almost endless:</p>
+<ul>
+<li>I highly recommend reading Chapter 12 in (Prince, 2023). This fantastic book has an amazing introduction to transformers. You can find a plethora of extensions and applications of transformers therein.</li>
+<li>Here, we focused on ARMs, however, transformers could be used for processing sequences and then for a downstream task (e.g., a property prediction or classification). One of the most famous LLMs is Bidirectional Encoder Representations from Transformers or BERT for short (Devlin et al., 2018). It does not use causal masks and learns a conditional distribution $p(\mathbf{x}'|\mathbf{x})$. It corresponds to an auto-encoding kind of learning in which given tokens are reconstructed first (<em>pre-training phase</em>) and then, using the first output token corresponding to the "dummy" input token, a predictor is trained (<em>finetuning phase</em>). To avoid potential overfitting, dropout is applied to input tokens.</li>
+<li>There are three general groups of transformers: (i) <em>Decoders</em>: they are ARMs that use causal masks, e.g., GPT, (ii) <em>Encoders</em>: they do not use causal masks, e.g., BERT, (iii) <em>Encoder-decoder</em>: a conditional ARM that uses cross-attention instead of self-attention in which queries come from conditioning processed by an encoder-transformer. Encoder-decoders are widely used in machine translation.</li>
+<li>Interestingly, in the NLP task, it is possible to play with prompts (i.e., input texts) to obtain specific outputs. For instance, as discussed in (Kojima et al., 2022), LLMs are capable of zero-shot learning by presenting new examples in a prompt. This leads to an interesting research direction that focuses on modifying prompts for controlling LLMs behavior to get a specific outcome without updating the model weights. You can read a great overview provided by (Weng, 2023).</li>
+<li>For people interested in molecule generation, I highly suggest getting familiar with the following paper (and code) on drug discovery (Brown et al., 2019). Then, you can look up some papers that use transformers for molecule generation (Bagal et al., 2021) and downstream tasks incl. property prediction and de novo drug design (Izdebski et al., 2023).</li>
+<li>Transformers are also used for image processing. In a nutshell, an image is divided into small patches (e.g., 16-by-16 pixels) and then processed in a similar manner to processing sequences. The resulting approach is dubbed Visual Transformer or ViT for short (Dosovitskiy, 2020).</li>
+</ul>
+<p>As promised, I keep the list very short on purpose, my curious reader. I hope you got excited about transformers and their capabilities (here, using less than a thousand lines of code we were able to generate new molecules!), and with only these pointers you are ready to delve into a fantastic world of transformers!</p>
+
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="References">References<a class="anchor-link" href="#References">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>(Bahdanau et al., 2014) Bahdanau, Dzmitry, Kyunghyun Cho, and Yoshua Bengio. "Neural machine translation by jointly learning to 
+align and translate." arXiv preprint arXiv:1409.0473 (2014).</p>
+<p>(Bagal et al., 2021) Bagal, Viraj, et al. "MolGPT: molecular generation using a transformer-decoder model." Journal of Chemical Information and Modeling 62.9 (2021): 2064-2076.</p>
+<p>(Brown et al., 2019) Brown, Nathan, et al. "GuacaMol: benchmarking models for de novo molecular design." Journal of chemical information and modeling 59.3 (2019): 1096-1108.</p>
+<p>(Devlin et al., 2018) Devlin, Jacob, et al. "BERT: Pre-training of deep bidirectional transformers for language understanding." arXiv preprint arXiv:1810.04805 (2018).</p>
+<p>(Dosovitskiy, 2020) Dosovitskiy, Alexey, et al. "An image is worth 16x16 words: Transformers for image recognition at scale." arXiv preprint arXiv:2010.11929 (2020).</p>
+<p>(Ilse et al., 2018) Ilse, Maximilian, Jakub Tomczak, and Max Welling. "Attention-based deep multiple instance learning." International conference on machine learning. PMLR, 2018.</p>
+<p>(Izdebski et al., 2023) Izdebski, Adam, et al. "De novo Drug Design with Joint Transformers", 2023</p>
+<p>(Kojima et al., 2022) Kojima, Takeshi, et al. "Large language models are zero-shot reasoners." Advances in neural information processing systems 35 (2022): 22199-22213.</p>
+<p>(Luong et al., 2015) Luong, Minh-Thang, Hieu Pham, and Christopher D. Manning. "Effective approaches to attention-based neural machine translation." arXiv preprint arXiv:1508.04025 (2015).</p>
+<p>(Prince, 2023) Prince, Simon JD. Understanding Deep Learning. MIT PRESS, 2023.</p>
+<p>(Radford et al., 2019) Radford, Alec, et al. "Language models are unsupervised multitask learners." OpenAI blog 1.8 (2019): 9.</p>
+<p>(Vaswani et al., 2017) Vaswani, Ashish, et al. "Attention is all you need." Advances in neural information processing systems 30 (2017).</p>
+<p>(Weng, 2023) Weng, Lilian, "Prompt Engineering", <a href="https://lilianweng.github.io/posts/2023-03-15-prompt-engineering/">https://lilianweng.github.io/posts/2023-03-15-prompt-engineering/</a></p>
+<p>(Weininger, 1988) Weininger, David. "SMILES, a chemical language and information system. 1. Introduction to methodology and encoding rules." Journal of chemical information and computer sciences 28.1 (1988): 31-36.</p>
+<p>(Xiong et al., 2020) Xiong, Ruibin, et al. "On layer normalization in the transformer architecture." International Conference on Machine Learning. PMLR, 2020.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong><em>Acknowledgements</em></strong></p>
+<p><em>I would like to thank <a href="https://www.linkedin.com/in/adam-izdebski/" target="_blank">Adam Izdebski</a> for fruitful discussions about transformers and molecular modeling.</em></p>
+
+</div>
+</div>
+</div>
+    </div>
+  </div>
+</body>
+
+
+
+
+
+
+
+</html>
