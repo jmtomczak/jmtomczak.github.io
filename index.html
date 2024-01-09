@@ -523,12 +523,14 @@
           <div class="col-lg-12 d-flex justify-content-center" data-aos="fade-up" data-aos-delay="100">
             <ul id="portfolio-flters">
               <li data-filter="*" class="filter-active">All</li>
+			  <li data-filter=".filter-intro">Intro</li>
+			  <li data-filter=".filter-arms">ARMs</li>
+			  <li data-filter=".filter-flows">Flows</li>
 			  <li data-filter=".filter-vaes">VAEs</li>
+			  <li data-filter=".filter-dbgms">DBGMs</li>
+			  <li data-filter=".filter-sbgms">SBGMs</li>
               <li data-filter=".filter-gans">GANs</li>
-              <li data-filter=".filter-flows">Flows</li>
-              <li data-filter=".filter-arms">ARMs</li>
 			  <li data-filter=".filter-joint">Joint</li>
-			  <li data-filter=".filter-theory">Theory</li>
 			  <li data-filter=".filter-apps">Applications</li>
             </ul>
           </div>
@@ -536,7 +538,7 @@
 		
         <div class="row portfolio-container" data-aos="fade-up" data-aos-delay="200">
 
-          <div class="col-lg-4 col-md-6 portfolio-item filter-theory">
+          <div class="col-lg-4 col-md-6 portfolio-item filter-intro">
             <div class="portfolio-wrap">
               <img src="blog/1/where.png" class="img-fluid" alt="">
               <div class="portfolio-info">
@@ -566,6 +568,20 @@
             </div>
           </div>
 		  
+		  <div class="col-lg-4 col-md-6 portfolio-item filter-arms">
+            <div class="portfolio-wrap">
+              <img src="blog/15/convolutions_vs_attention.svg" class="img-fluid" alt="">
+              <div class="portfolio-info">
+                <h4>ARMs parameterized by Transformers</h4>
+                <p>- What is self-attention?<br>
+					- What is a transformer-based architecture?</p>
+                <div class="portfolio-links">
+                  <a href="blog/15/15_transformers.html" class="portfolio-details-lightbox" data-glightbox="type: external" title="Transformers"><i class="bx bx-link"></i></a>
+                </div>
+              </div>
+            </div>
+          </div>
+		  
           <div class="col-lg-4 col-md-6 portfolio-item filter-flows">
             <div class="portfolio-wrap">
               <img src="blog/3/bijection.png" class="img-fluid" alt="">
@@ -576,6 +592,21 @@
 					- How to implement your own flow-based model using coupling layers!</p>
                 <div class="portfolio-links">
                   <a href="blog/3/3_flows.html" class="portfolio-details-lightbox" data-glightbox="type: external" title="Flows"><i class="bx bx-link"></i></a>
+                </div>
+              </div>
+            </div>
+          </div>
+		  
+		  <div class="col-lg-4 col-md-6 portfolio-item filter-flows">
+            <div class="portfolio-wrap">
+              <img src="blog/5/discretized_logistic.png" class="img-fluid" alt="">
+              <div class="portfolio-info">
+                <h4>Integer Discrete Flows</h4>
+                <p>- What is a potential problem with continous variables.<br>
+					- How we can learn a distribution over integer-valued variables.<br>
+					- How to implement your own Integer Discrete Flows!</p>
+                <div class="portfolio-links">
+                  <a href="blog/5/5_IDF.html" class="portfolio-details-lightbox" data-glightbox="type: external" title="IDF"><i class="bx bx-link"></i></a>
                 </div>
               </div>
             </div>
@@ -595,17 +626,105 @@
               </div>
             </div>
           </div>
-
-          <div class="col-lg-4 col-md-6 portfolio-item filter-flows">
+		  
+		  <div class="col-lg-4 col-md-6 portfolio-item filter-vaes">
             <div class="portfolio-wrap">
-              <img src="blog/5/discretized_logistic.png" class="img-fluid" alt="">
+              <img src="blog/7/vae_mog_16_2D_latent.png" class="img-fluid" alt="">
               <div class="portfolio-info">
-                <h4>Integer Discrete Flows</h4>
-                <p>- What is a potential problem with continous variables.<br>
-					- How we can learn a distribution over integer-valued variables.<br>
-					- How to implement your own Integer Discrete Flows!</p>
+                <h4>Priors in VAEs</h4>
+                <p>- How to re-write the ELBO in VAEs.<br>
+					- Why priors are so important.<br>
+					- How to model priors using Mixture of Gaussians, VampPriors, GTMs and flows!</p>
                 <div class="portfolio-links">
-                  <a href="blog/5/5_IDF.html" class="portfolio-details-lightbox" data-glightbox="type: external" title="IDF"><i class="bx bx-link"></i></a>
+                  <a href="blog/7/7_priors.html" class="portfolio-details-lightbox" data-glightbox="type: external" title="Priors"><i class="bx bx-link"></i></a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-4 col-md-6 portfolio-item filter-vaes">
+            <div class="portfolio-wrap">
+              <img src="blog/9/latent_variable_likelihood_flexible.png" class="img-fluid" alt="">
+              <div class="portfolio-info">
+                <h4>Hierarchical VAEs</h4>
+                <p>- Why we use hierarchical latent variable models.<br>
+					- How to construct hierarchical VAEs.<br>
+					- How to implement top-down VAEs.</p>
+                <div class="portfolio-links">
+                  <a href="blog/9/9_hierarchical_lvm_p1.html" class="portfolio-details-lightbox" data-glightbox="type: external" title="HierarchicalVAEs"><i class="bx bx-link"></i></a>
+                </div>
+              </div>
+            </div>
+          </div>
+		  
+		  <div class="col-lg-4 col-md-6 portfolio-item filter-vaes">
+            <div class="portfolio-wrap">
+              <img src="blog/13/math.jpg" class="img-fluid" alt="">
+              <div class="portfolio-info">
+                <h4>Trouble in Paradise</h4>
+                <p>- What is the problem with variational inference.<br>
+					- Are Latent Variable Models good for representation learning?</p>
+                <div class="portfolio-links">
+                  <a href="blog/13/13_trouble_in_paradise.html" class="portfolio-details-lightbox" data-glightbox="type: external" title="Theory1"><i class="bx bx-link"></i></a>
+                </div>
+              </div>
+            </div>
+          </div>
+		  
+          <div class="col-lg-4 col-md-6 portfolio-item filter-dbgms">
+            <div class="portfolio-wrap">
+              <img src="blog/10/cat_ddgm3.png" class="img-fluid" alt="">
+              <div class="portfolio-info">
+                <h4>Diffusion-based Models</h4>
+                <p>- How to construct hierarchical VAEs with duffiusion-based encoders.<br>
+					- How to implement diffusion-based DGMS.<br>
+					- What are recent developments in diffusion-based DGMs.</p>
+                <div class="portfolio-links">
+                  <a href="blog/10/10_ddgms_lvm_p2.html" class="portfolio-details-lightbox" data-glightbox="type: external" title="Diffusion"><i class="bx bx-link"></i></a>
+                </div>
+              </div>
+            </div>
+          </div>
+		  
+          <div class="col-lg-4 col-md-6 portfolio-item filter-dbgms">
+            <div class="portfolio-wrap">
+              <img src="blog/14/diffusion.jpg" class="img-fluid" alt="">
+              <div class="portfolio-info">
+                <h4>Are we dil(ff)usional?!</h4>
+                <p>- What is the ELBO for diffusion-based models.<br>
+					- What are the consequences of applying diffusion to the ELBO?</p>
+                <div class="portfolio-links">
+                  <a href="blog/14/14_diffusional_elbo.html" class="portfolio-details-lightbox" data-glightbox="type: external" title="Theory1"><i class="bx bx-link"></i></a>
+                </div>
+              </div>
+            </div>
+          </div>
+		  
+          <div class="col-lg-4 col-md-6 portfolio-item filter-sbgms">
+            <div class="portfolio-wrap">
+              <img src="blog/16/sgld_trajectory.png" class="img-fluid" alt="">
+              <div class="portfolio-info">
+                <h4>Score Matching</h4>
+                <p>- What is score function?<br>
+				   - What is score matching?<br>
+				   - How to use a score model for data generation?</p>
+                <div class="portfolio-links">
+                  <a href="blog/16/16_score_matching.html" class="portfolio-details-lightbox" data-glightbox="type: external" title="Theory1"><i class="bx bx-link"></i></a>
+                </div>
+              </div>
+            </div>
+          </div>
+		  
+          <div class="col-lg-4 col-md-6 portfolio-item filter-gans">
+            <div class="portfolio-wrap">
+              <img src="blog/12/gans.png" class="img-fluid" alt="">
+              <div class="portfolio-info">
+                <h4>GANs</h4>
+                <p>- What are density networks.<br>
+					- How to formulate the adversarial optimization problem.<br>
+					- How to implement GANs.</p>
+                <div class="portfolio-links">
+                  <a href="blog/12/12_gans.html" class="portfolio-details-lightbox" data-glightbox="type: external" title="GANs"><i class="bx bx-link"></i></a>
                 </div>
               </div>
             </div>
@@ -626,16 +745,16 @@
             </div>
           </div>
 
-          <div class="col-lg-4 col-md-6 portfolio-item filter-vaes">
+          <div class="col-lg-4 col-md-6 portfolio-item filter-joint">
             <div class="portfolio-wrap">
-              <img src="blog/7/vae_mog_16_2D_latent.png" class="img-fluid" alt="">
+              <img src="blog/11/ebm.png" class="img-fluid" alt="">
               <div class="portfolio-info">
-                <h4>Priors in VAEs</h4>
-                <p>- How to re-write the ELBO in VAEs.<br>
-					- Why priors are so important.<br>
-					- How to model priors using Mixture of Gaussians, VampPriors, GTMs and flows!</p>
+                <h4>Energy-based Models</h4>
+                <p>- How to construct an energy-based model.<br>
+					- How to implement the Langevin dynamics.<br>
+					- What are the potential problems with these models.</p>
                 <div class="portfolio-links">
-                  <a href="blog/7/7_priors.html" class="portfolio-details-lightbox" data-glightbox="type: external" title="Priors"><i class="bx bx-link"></i></a>
+                  <a href="blog/11/11_energy_based_models.html" class="portfolio-details-lightbox" data-glightbox="type: external" title="EBM"><i class="bx bx-link"></i></a>
                 </div>
               </div>
             </div>
@@ -651,108 +770,6 @@
 					- How to use deep generetive modeling for neural compression</p>
                 <div class="portfolio-links">
                   <a href="blog/8/8_neural_compression.html" class="portfolio-details-lightbox" data-glightbox="type: external" title="NeuralCompression"><i class="bx bx-link"></i></a>
-                </div>
-              </div>
-            </div>
-          </div>
-		  
-          <div class="col-lg-4 col-md-6 portfolio-item filter-vaes">
-            <div class="portfolio-wrap">
-              <img src="blog/9/latent_variable_likelihood_flexible.png" class="img-fluid" alt="">
-              <div class="portfolio-info">
-                <h4>Hierarchical VAEs</h4>
-                <p>- Why we use hierarchical latent variable models.<br>
-					- How to construct hierarchical VAEs.<br>
-					- How to implement top-down VAEs.</p>
-                <div class="portfolio-links">
-                  <a href="blog/9/9_hierarchical_lvm_p1.html" class="portfolio-details-lightbox" data-glightbox="type: external" title="HierarchicalVAEs"><i class="bx bx-link"></i></a>
-                </div>
-              </div>
-            </div>
-          </div>
-		  
-          <div class="col-lg-4 col-md-6 portfolio-item filter-vaes">
-            <div class="portfolio-wrap">
-              <img src="blog/10/cat_ddgm3.png" class="img-fluid" alt="">
-              <div class="portfolio-info">
-                <h4>Diffusion-based Models</h4>
-                <p>- How to construct hierarchical VAEs with duffiusion-based encoders.<br>
-					- How to implement diffusion-based DGMS.<br>
-					- What are recent developments in diffusion-based DGMs.</p>
-                <div class="portfolio-links">
-                  <a href="blog/10/10_ddgms_lvm_p2.html" class="portfolio-details-lightbox" data-glightbox="type: external" title="Diffusion"><i class="bx bx-link"></i></a>
-                </div>
-              </div>
-            </div>
-          </div>
-		  
-          <div class="col-lg-4 col-md-6 portfolio-item filter-joint">
-            <div class="portfolio-wrap">
-              <img src="blog/11/ebm.png" class="img-fluid" alt="">
-              <div class="portfolio-info">
-                <h4>Energy-based Models</h4>
-                <p>- How to construct an energy-based model.<br>
-					- How to implement the Langevin dynamics.<br>
-					- What are the potential problems with these models.</p>
-                <div class="portfolio-links">
-                  <a href="blog/11/11_energy_based_models.html" class="portfolio-details-lightbox" data-glightbox="type: external" title="EBM"><i class="bx bx-link"></i></a>
-                </div>
-              </div>
-            </div>
-          </div>
-		  
-          <div class="col-lg-4 col-md-6 portfolio-item filter-gans">
-            <div class="portfolio-wrap">
-              <img src="blog/12/gans.png" class="img-fluid" alt="">
-              <div class="portfolio-info">
-                <h4>GANs</h4>
-                <p>- What are density networks.<br>
-					- How to formulate the adversarial optimization problem.<br>
-					- How to implement GANs.</p>
-                <div class="portfolio-links">
-                  <a href="blog/12/12_gans.html" class="portfolio-details-lightbox" data-glightbox="type: external" title="GANs"><i class="bx bx-link"></i></a>
-                </div>
-              </div>
-            </div>
-          </div>
-		  
-          <div class="col-lg-4 col-md-6 portfolio-item filter-theory">
-            <div class="portfolio-wrap">
-              <img src="blog/13/math.jpg" class="img-fluid" alt="">
-              <div class="portfolio-info">
-                <h4>Trouble in Paradise</h4>
-                <p>- What is the problem with variational inference.<br>
-					- Are Latent Variable Models good for representation learning?</p>
-                <div class="portfolio-links">
-                  <a href="blog/13/13_trouble_in_paradise.html" class="portfolio-details-lightbox" data-glightbox="type: external" title="Theory1"><i class="bx bx-link"></i></a>
-                </div>
-              </div>
-            </div>
-          </div>
-		  
-          <div class="col-lg-4 col-md-6 portfolio-item filter-theory">
-            <div class="portfolio-wrap">
-              <img src="blog/14/diffusion.jpg" class="img-fluid" alt="">
-              <div class="portfolio-info">
-                <h4>Are we dil(ff)usional?!</h4>
-                <p>- What is the ELBO for diffusion-based models.<br>
-					- What are the consequences of applying diffusion to the ELBO?</p>
-                <div class="portfolio-links">
-                  <a href="blog/14/14_diffusional_elbo.html" class="portfolio-details-lightbox" data-glightbox="type: external" title="Theory1"><i class="bx bx-link"></i></a>
-                </div>
-              </div>
-            </div>
-          </div>
-		  
-		  <div class="col-lg-4 col-md-6 portfolio-item filter-arms">
-            <div class="portfolio-wrap">
-              <img src="blog/15/convolutions_vs_attention.svg" class="img-fluid" alt="">
-              <div class="portfolio-info">
-                <h4>ARMs parameterized by Transformers</h4>
-                <p>- What is self-attention?<br>
-					- What a transformer architecture?</p>
-                <div class="portfolio-links">
-                  <a href="blog/15/15_transformers.html" class="portfolio-details-lightbox" data-glightbox="type: external" title="Transformers"><i class="bx bx-link"></i></a>
                 </div>
               </div>
             </div>

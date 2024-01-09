@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>16_score_matching</title><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+
+
+<!-- MUST INCLUDE TO PROPERLY ADD HEADER! -->
+<link rel="stylesheet" type="text/css" media="screen" href="../../css/main.css" />
+<link rel="stylesheet" type="text/css" media="screen" href="../blog.css" />
+
+<!-- Loading mathjax macro -->
+<!-- Load mathjax -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_HTML"></script>
+    <!-- MathJax configuration -->
+    <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+        tex2jax: {
+            inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+            displayMath: [ ['$$','$$'], ["\\[","\\]"] ],
+            processEscapes: true,
+            processEnvironments: true
+        },
+        // Center justify equations in code and markdown cells. Elsewhere
+        // we use CSS to left justify single line equations in code cells.
+        displayAlign: 'center',
+        "HTML-CSS": {
+            styles: {'.MathJax_Display': {"margin": 0}},
+            linebreaks: { automatic: true }
+        }
+    });
+    </script>
+    <!-- End of mathjax configuration --></head>
+<body>
+  <div tabindex="-1" id="notebook" class="border-box-sizing">
+    <div class="container" id="notebook-container">
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="Score-based-generative-models:-Score-matching">Score-based generative models: Score matching<a class="anchor-link" href="#Score-based-generative-models:-Score-matching">&#182;</a></h1>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="Introduction">Introduction<a class="anchor-link" href="#Introduction">&#182;</a></h3>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>Let us start with the following quote from the abstract of (Song et al., 2020):</p>
+<br>
+<p><center><i>"Creating noise from data is easy; creating data from noise is generative modeling."</i></center>
+<br></p>
+<p>I must say that it is hard to come up with a shorter definition of concurrent generative modeling. Once we look at various classes of models, we immediately notice that this is exactly what we try to do: Generate data from noise! Don't believe me? OK, we should have a look at how various classes of generative models work:</p>
+<ul>
+<li>GANs: Sample noise $\mathbf{z}$ from a known $p(\mathbf{z})$ and use a generator $G(\mathbf{z})$ to get data.</li>
+<li>VAEs: Sample noise $\mathbf{z}$ from a prior $p(\mathbf{z})$ and use a decoder $p(\mathbf{x} | \mathbf{z})$ to sample data.</li>
+<li>Normalizing flows: Sample noise $\mathbf{z}$ from a base distribution $p(\mathbf{z})$ and use an invertible transformation $f$ to get data, $\mathbf{x} = f^{-1}(\mathbf{z})$.</li>
+</ul>
+<p>I hope you see the pattern, my curious reader. In general, we can say that we look for a tranformation $\psi$ that maps noise $\mathbf{z}$ to data $\mathbf{x}$, namely, $\mathbf{x} = \psi(\mathbf{z})$. An example is presented in Figure 1.</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<center><img src="noise_to_data.svg" width="900"></center><center><b>Figure 1.</b> A schematic representation of generative modeling seen as mapping noise (left: black crosses) to data (right: black crosses around orange moons) using some transformation $\psi$.</center>
+<br>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>In GANs, VAEs and normalizing flows, the transformation is done in a "single step" by some neural net, namely, noise is mapped to data through a generator, a decoder or an inversion of $f$, respectively. However, this does not need to be accomplished in this manner. In fact, we could easily think of an iterative process. And we know such a class of models already: Diffusion-based models! The forward diffusion adds Gaussian noise to a data point in the consecutive steps until the data point becomes pure Gaussian noise, i.e., $\mathbf{x}_0 \sim p_{data}(\mathbf{x})$ and $\mathbf{x}_1 \sim \mathcal{N}(0, \mathbf{I})$ (a notation reminder: a datapoint $\mathbf{x} \equiv \mathbf{x}_0$ and noise $\mathbf{z} \equiv \mathbf{x}_1$). Then, the generative part (a.k.a. the backward diffusion) starts with $\mathbf{x}_1$ (i.e., pure Gaussian noise) and removes small amount of noise step-by-step until data $\mathbf{x}_0$ is achieved. In first implementations of diffusion models (Sohl-Dickstein et al., 2015; Ho et al., 2020), a finite number of steps was used, $T &lt; +\infty$, thus, diffusion-based models could be seen as hierarchical VAEs with fixed encoders, see <a href="https://jmtomczak.github.io/blog/10/10_ddgms_lvm_p2.html" target="_blank">the post on diffusion models</a>, and (Kingma et al., 2021).</p>
+<br>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>In practice, the success of diffusion-based models comes from their depth, among other aspects (e.g., see <a href="https://jmtomczak.github.io/blog/14/14_diffusional_elbo.html" target="_blank">the post on information-theoretic properties of diffusion models</a>). In other words, we can learn extremely deep hierarchical models (e.g., $T=1000$) because the generation process is defined as removing small bits of noise for two consecutive variables. During training, a shared network is trained to predict this tiny-teeny amount of noise in a stochastic manner by sampling $t \in [0, 1]$ and then optimizing the following loss:</p>
+<br>
+\begin{equation}\label{eq:diffusion_kl_t}\tag{1}
+\mathcal{L}_{t}(\mathbf{x}_{t}) = \mathbb{E}_{\mathcal{N}(\epsilon | 0, \mathbf{I})} \left[\gamma_t \| \epsilon - \epsilon_{\theta}(\mathbf{x}_{t}, t) \|^{2} \right] ,
+\end{equation}
+<br>
+<p>where $\epsilon_t$ is a sample from the standard Gaussian, $\gamma_t$ is a <em>variance</em> following from the noise schedule, $\epsilon_{\theta}(\cdot)$ is a shared neural net across all $t$'s that aims at predictimg $\epsilon$ given $\mathbf{x}_{t}$ and $t$, and $\mathbf{x}_{t}$ could be expressed using given data $\mathbf{x}_0$ and $\epsilon$. For simplicity, $\gamma_t$ is set to $1$ that results in the so-called <em>simplified objective</em> (Ho et al., 2020), but it could be also learnt (Kingma &amp; Gao, 2023).</p>
+<br>
+<p>I know you, my curious reader, and I see your question coming. Since diffusion models work so good because the number of steps $T$ being large, why we should not go wild and take infinitely many steps, $T = +\infty$. It is a reasonable way of thinking, nonetheless, it entails some issues. First, we would need to deal with continuous $t \in [0, 1]$. However, we actually know that we can use differential equations to take care of this issue. But then a second issue arrises: How to define generative models through differential equations? Ideally, we would like to obtain a method that allows us to train such models in a simple way with a loss similar to (\ref{eq:diffusion_kl_t}). It turns out that it is possible! But first, we will look into a different way of changing noise to data, a method called <em>score matching</em>. After that, we will be equipped with a learning strategy for dealing with continuous time (i.e., infinitely deep generative models). Eventually, we will discuss an alternative to score matching called <em>flow matching</em>.</p>
+<br>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="Score-matching">Score matching<a class="anchor-link" href="#Score-matching">&#182;</a></h3>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>Keep in mind that our goal is to propose a model that turns noise to data in an iterative manner. Here is our first attempt. Imagine the following situation:</p>
+<ul>
+<li>We have access to the real distribution $p_{real}(\mathbf{x})$, where $\mathbf{x} \in \mathcal{X}$.</li>
+<li>We take any point in the data space at random (e.g., we sample from a uniform distribution over $\mathcal{X}$), $\hat{\mathbf{x}} \in \mathcal{X}$. There is a very high chance that $p_{real}(\hat{\mathbf{x}})$ is close to $0$, $p_{real}(\hat{\mathbf{x}}) \approx 0$.</li>
+<li>The <strong>question</strong> is then this: How to turn $\hat{\mathbf{x}}$ into a legit data point (i.e., an object that could be observed in real life)?</li>
+</ul>
+<p>Actually, there is a good (i.e., relatively fast and theoretically well-grounded) method called <em>stochastic gradient Langevin dynamics</em> (SGLD) a.k.a. <em>Langevine dynamics</em> (Welling &amp; Teh, 2011) that allows to sample from $p_{real}(\mathbf{x})$. If we start in $\mathbf{x}_0 \equiv \hat{\mathbf{x}}$, then by following this procedure:</p>
+<br>
+\begin{equation}\label{eq:sgld}\tag{2}
+\mathbf{x}_{t + \Delta} = \mathbf{x}_{t} + \alpha\ \nabla_{\mathbf{x}_{t}} \ln p_{real}(\mathbf{x}) + \eta \cdot \epsilon ,
+\end{equation}
+<br>
+<p>where $\Delta$ is an increment, $\alpha &gt; 0$, $\eta &gt; 0$, and $\epsilon \sim \mathcal{N}(0, \mathbf{I})$, we eventually end up in a point $\mathbf{x}_{0}$ for which $p_{real}(\mathbf{x}_{0}) &gt; 0$, and which is somewhere around a mode.</p>
+<br>
+<p>That is great! However, there is one big issue, namely, we do not know the real distribution $p_{real}(\mathbf{x})$. We are back to square one and we can use GANs, VAEs, normalizing flows, etc. for finding a model $p_{\theta}(\mathbf{x})$. Or do we? Let us have another look at (\ref{eq:sgld}). We do not require to know $p_{real}(\mathbf{x})$ but the gradient of the logarithm of the real distribution, $\nabla_{\mathbf{x}} \ln p_{real}(\mathbf{x})$. This quantity is known as the <em>score function</em>, $s(\mathbf{x}) \stackrel{df}{=} \nabla_{\mathbf{x}} \ln p_{real}(\mathbf{x})$. Having $s(\mathbf{x})$ allows us to run SGLD to find new points that, eventually, follow the real distribution. An example of the score function for a multimodal distribution is presented in Figure 2. The score function is represented as vectors over a grid (Figure 2 left). As we can see, the score function indicates moving towards the modes and, thus, it steers Langevine dynamics (Figure 2 right).</p>
+<br>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<center><img src="score_matching_vf.png" width="500"> <img src="sgld_trajectory.png" width="500"></center><center><b>Figure 2.</b> (<i>left</i>) An illustration of the score function $s(\mathbf{x})$ plotted as vectors (white arrows) on a regular grid for a multimodal distribution (dark colors correspond to low probability, bright colors depict high probability). (<i>right</i>) A trajectory after applying the SGLD (consecutive points are represented by white crosses, and their scores are denoted by gray arrows).</center>
+<br>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>As a result, instead of fitting a model to the data distribution, <strong>we can fit a model to the score function</strong>. Keep in mind that the score function is a gradient, thus, it returns an onbject of the same shape as $\mathbf{x}$ that could be represented as a vector. Therefore, we can find the best model of the score function by optimizing the following regression problem (Hyvärinen &amp; Dayan, 2005; Hyvärinen, 2007):</p>
+<br>
+\begin{equation}\label{eq:score_matching}\tag{3}
+\mathcal{J}(\theta) = \frac{1}{2} \int \| s_{\theta}(\mathbf{x}) - \nabla_{\mathbf{x}} \ln p_{data}(\mathbf{x}) \|^{2}\ p_{data}(\mathbf{x})\ \mathrm{d} \mathbf{x} . 
+\end{equation}
+<br>
+<p>This integral is not anything special because it is the mean squared error loss, a typical loss used for regression.</p>
+<br>
+<p>The arising problem with (\ref{eq:score_matching}) is that it is not differentiable since $p_{data}(\mathbf{x}) = \frac{1}{N} \sum_{n=1}^{N} \delta(\mathbf{x} - \mathbf{x}_n)$, where $\delta(\cdot)$ is Dirac's delta. Since Dirac's delta is a non-differentiable function of $\mathbf{x}$, we cannot solve (\ref{eq:score_matching}) using autograd. There is a solution, though, by adding some small Gaussian noise with variance $\sigma^2$ to data, i.e., $\tilde{\mathbf{x}}_n = \mathbf{x}_n + \sigma\cdot \epsilon$, where $\epsilon \sim \mathcal{N}(0, \mathbf{I})$. The resulting distribution is Gaussian, $\mathcal{N}(\tilde{\mathbf{x}}_n | \mathbf{x}_n, \sigma^{2})$. In other words, we can turn $p_{data}(\mathbf{x})$ into a a mixture of Gaussians with data as means and some small variance $\sigma^2$, namely:</p>
+\begin{equation}
+q_{data}(\tilde{\mathbf{x}}_n) = \frac{1}{N} \sum_{n=1}^{N} \mathcal{N}(\tilde{\mathbf{x}}_n| \mathbf{x}_{n}, \sigma^2) .
+\end{equation}
+<p>Eventually, instead of using the non-differentiable objective in (\ref{eq:score_matching}), we can formulate a differentiable objective by replacing $p_{data}(\mathbf{x}_n)$ with $q_{data}(\tilde{\mathbf{x}}_n)$ in (\ref{eq:score_matching}) (Hyvärinen &amp; Dayan, 2005; Hyvärinen, 2007; Vincent 2011):</p>
+<br>
+\begin{equation}\label{eq:differentiable_score_matching}\tag{4}
+\mathcal{L}(\theta) = \frac{1}{2N} \sum_{n=1}^{N} \int \| s_{\theta}(\tilde{\mathbf{x}}) - \nabla_{\tilde{\mathbf{x}}} \ln \mathcal{N}(\tilde{\mathbf{x}}| \mathbf{x}_{n}, \sigma^2) \|^{2}\ \mathcal{N}(\tilde{\mathbf{x}}_n| \mathbf{x}_{n}, \sigma^2)\ \mathrm{d} \tilde{\mathbf{x}} . 
+\end{equation}
+<br>
+<p>One may say that there is still a problem because we have a gradient to calculate. However, we know the closed form of the score function for the Gaussian distribution:</p>
+\begin{align}
+\nabla_{\tilde{\mathbf{x}}} \ln \mathcal{N}(\tilde{\mathbf{x}}_n| \mathbf{x}_{n}, \sigma^2) &amp;= \nabla_{\tilde{\mathbf{x}}} \left(- \ln(2\pi\sigma^D) - \frac{1}{2\sigma^2} (\tilde{\mathbf{x}}_n - \mathbf{x}_{n})^2 \right) \\
+&amp;= - \nabla_{\tilde{\mathbf{x}}} \frac{1}{2\sigma^2} (\tilde{\mathbf{x}}_n - \mathbf{x}_{n})^2 \\
+&amp;= - \frac{1}{\sigma^2} (\tilde{\mathbf{x}}_n - \mathbf{x}_{n}) \\
+&amp;= - \frac{1}{\sigma^2} (\mathbf{x}_n + \sigma\cdot \epsilon - \mathbf{x}_{n}) \\
+&amp;= - \frac{1}{\sigma} \epsilon ,
+\end{align}<p>where in the fourth equation we used the definition of $\tilde{\mathbf{x}}$, $\tilde{\mathbf{x}}_n = \mathbf{x}_n + \sigma\cdot \epsilon$. Thus the score is the following:</p>
+<br>
+\begin{equation}\label{eq:score_gaussian}\tag{5}
+\nabla_{\tilde{\mathbf{x}}} \ln \mathcal{N}(\tilde{\mathbf{x}}_n| \mathbf{x}_{n}, \sigma^2) = - \frac{1}{\sigma} \epsilon,
+\end{equation}
+<br>
+<p>and by plugging (\ref{eq:score_gaussian}) in (\ref{eq:differentiable_score_matching}), we get the differentiable objective in the final form:</p>
+\begin{align}
+\mathcal{L}(\theta) &amp;= \frac{1}{2N} \sum_{n=1}^{N} \int \| s_{\theta}(\tilde{\mathbf{x}}) + \frac{1}{\sigma} \epsilon \|^{2}\ \mathcal{N}(\epsilon | 0, \sigma^{2} \mathbf{I})\ \mathrm{d} \epsilon \\
+&amp;= \frac{1}{2N} \sum_{n=1}^{N} \mathbb{E}_{\mathcal{N}(\epsilon | 0,\mathbf{I})} \left[ \| s_{\theta}(\tilde{\mathbf{x}}) + \frac{1}{\sigma} \epsilon \|^{2} \right] \\
+&amp;= \frac{1}{N} \sum_{n=1}^{N} \mathbb{E}_{\mathcal{N}(\epsilon | 0,\mathbf{I})}  \left[ \frac{1}{2\sigma} \| \epsilon - \tilde{s}_{\theta}(\tilde{\mathbf{x}}) \|^{2} \right] \label{eq:gaussian_differentiable_score_matching}\tag{6}
+\end{align}
+<p>where in the last line we modified the score model to be of the following form: $\tilde{s}_{\theta}(\mathbf{x}) = - \sigma s_{\theta}(\tilde{\mathbf{x}})$, and we used the property of $\sigma$ being positive (remember, it is the standard deviation that is always positive!). Of course, while implementing, we can parameterize $\tilde{s}_{\theta}(\tilde{\mathbf{x}})$ using a neural network directly, we do not have to parameterize $s_{\theta}(\mathbf{x})$ first and then rescale it, there is no need for that. We just need to be aware of all the steps here. Learning the score model $\tilde{s}_{\theta}(\tilde{\mathbf{x}})$ by optimizing the objective in (\ref{eq:gaussian_differentiable_score_matching}) is called (denoising) <strong>score matching</strong> ((Hyvärinen &amp; Dayan, 2005; Hyvärinen, 2007; Song &amp; Ermon, 2019).</p>
+<p>Score matching allows us to learn a generative model in a completely different manner. Instead of <strong>matching distributions</strong>, we can perform <strong>matching scores</strong> by solving a regression problem. This is a new perspective on training generative models, but keep in mind that, eventually, this approach is used to generate data from noise by applying Langevine dynamics. Below, we gather practical information about score matching.</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<br>
+<p><strong>Score matching: Training.</strong> We can learn the score model by repeating the following steps:</p>
+<ol>
+<li>Pick a data point $\mathbf{x}$.</li>
+<li>Sample $\epsilon$ from $\mathcal{N}(\epsilon | 0, \mathbf{I})$.</li>
+<li>Calculate the noisy version of data, $\tilde{\mathbf{x}} = \mathbf{x} + \sigma \cdot \epsilon$.</li>
+<li>Calculate the score, $\tilde{s}_{\theta}(\tilde{\mathbf{x}})$.</li>
+<li>Calculate gradient with respect to $\theta$ of the score matching objective, i.e., $\Delta \theta = \nabla_{\theta} \frac{1}{2\sigma} \| \epsilon - \tilde{s}_{\theta}(\tilde{\mathbf{x}}) \|^{2}$. We accomplish that by applying automatic differentiation.</li>
+<li>Update the score model: $\theta := \theta - \Delta \theta$. Go to 1 until STOP.</li>
+</ol>
+<p>In practice, we use mini-batches, but the whole procedure remains the same.</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<br>
+<p><strong>Score matching: Generation.</strong> Once we learn the score model, we can use it for sampling using Langevine dynamics. The generative procedure is the following:</p>
+<ol>
+<li>Sample a point $\mathbf{x}_0$ at random (e.g., using a uniform distribution).</li>
+<li>Run Langevine dynamics for $T$ steps, where $\Delta = \frac{1}{T}$:
+\begin{equation}\label{eq:score_matching_generation}\tag{7}
+\mathbf{x}_{t + \Delta} = \mathbf{x}_{t} + \alpha\ \tilde{s}_{\theta}(\mathbf{x}_{t}) + \eta \cdot \epsilon ,
+\end{equation}</li>
+<li>Return the final point $\mathbf{x}_1$.</li>
+</ol>
+<p>The final point should follow the data distribution. Note that to keep the formulation of Langevin dynamics unchanged, we used $s_{\theta}(\mathbf{x}_{t})$ instead $\tilde{s}_{\theta}(\mathbf{x}_{t})$. There is no problem though because we know the relation $\tilde{s}_{\theta}(\mathbf{x}_{t}) = - \sigma s_{\theta}(\mathbf{x}_{t})$, thus, $s_{\theta}(\mathbf{x}_{t}) = - \frac{1}{\sigma} \tilde{s}_{\theta}(\mathbf{x}_{t})$</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<br>
+<p><strong>Score matching and Diffusion-based models.</strong> I know you, my curious reader, and I can bet you have noticed something. If we look at the objective for diffusion-based moedls in (1) and the score models in (6), we can clearly see they are almost identical (especially, if we set $\gamma_t = \frac{1}{\sigma}$)! In fact, we can turn score matching into (almost) diffusion-based approach. For this, we need three things:</p>
+<ol>
+<li>We introduce a schedule for variances $\sigma_t^2$, for $t \in \mathcal{T} = \{t: t \text{ goes from } 0 \text{ to } 1 \text{ with the increment } \Delta = \frac{1}{T}\}$.</li>
+<li>We modify the score model to be "aware" of this schedule, namely, $\tilde{s}_{\theta}(\mathbf{x}, \sigma_t^2)$.</li>
+<li>We modify the objective to be "aware" of this schedule:
+\begin{equation}
+\mathcal{L}(\theta) = \frac{1}{2N} \sum_{n=1}^{N} \sum_{t \in \mathcal{T}} \lambda_t \mathbb{E}_{\mathcal{N}(\epsilon | 0,\mathbf{I})}  \left[ \frac{1}{\sigma} \| \epsilon - \tilde{s}_{\theta}(\tilde{\mathbf{x}},  \sigma_t^{2}) \|^{2} \right] , \label{eq:schedule_score_matching}\tag{8}
+\end{equation}
+where $\lambda_t$ are weighting coefficients, e.g., $\lambda_t = \sigma_t^{2}$.</li>
+</ol>
+<p>Sampling for such a model requires some changes. For instance, annealed Langevin dynamics could be used, see Algorithm 1 in (Song &amp; Ermon, 2019). Eventually, we end up with a sampling procedure that is very similar to diffusion-based models. The differences lie in the sampling scheme that runs multiple steps of Langevine dynamics per each $\sigma_t^{2}$ while diffusion-based models do a single step per one "denoising".</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="Coding-score-matching">Coding score matching<a class="anchor-link" href="#Coding-score-matching">&#182;</a></h3>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>We outlined how to implement training and sampling (generation) using score matching. The code is pretty straightforward. The only "trick" is to transform data to be in $[-1, 1]$. In the code below, we make only one difference compared to our analysis above, namely, we use $\frac{1}{2\sigma} \| \epsilon + \tilde{s}_{\theta}(\tilde{\mathbf{x}}) \|^{2}$ such that Langevine dynamics is in its standard form: $\mathbf{x}_{t + \Delta} = \mathbf{x}_{t} + \alpha\ \tilde{s}_{\theta}(\mathbf{x}_{t}) + \eta \cdot \epsilon$.</p>
+<br>
+</div>
+</div>
+</div>
+</div>
+
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>The full code (with auxiliary functions) that you can play with is available here: <a href="https://github.com/jmtomczak/intro_dgm">link</a>.</p>
+<br>
+</div>
+</div>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs  ">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt"></div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+     <div class="CodeMirror cm-s-jupyter">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">ScoreMatching</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snet</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">sigma</span><span class="p">,</span> <span class="n">eta</span><span class="p">,</span> <span class="n">D</span><span class="p">,</span> <span class="n">T</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ScoreMatching</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Score Matching by JT.&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">snet</span> <span class="o">=</span> <span class="n">snet</span>
+        
+        <span class="c1"># other hyperparams</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">D</span> <span class="o">=</span> <span class="n">D</span>
+                
+        <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">=</span> <span class="n">sigma</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">T</span> <span class="o">=</span> <span class="n">T</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span> <span class="o">=</span> <span class="n">alpha</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">eta</span> <span class="o">=</span> <span class="n">eta</span>
+    
+    <span class="k">def</span> <span class="nf">sample_base</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x_1</span><span class="p">):</span>
+        <span class="c1"># Uniform over [-1, 1]**D</span>
+        <span class="k">return</span> <span class="mf">2.</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">x_1</span><span class="p">)</span> <span class="o">-</span> <span class="mf">1.</span>
+    
+    <span class="k">def</span> <span class="nf">langevine_dynamics</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">T</span><span class="p">):</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">x</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">snet</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">eta</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">x</span>
+
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="s1">&#39;mean&#39;</span><span class="p">):</span>
+        <span class="c1"># =====Score Matching</span>
+        <span class="c1"># sample noise</span>
+        <span class="n">epsilon</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        
+        <span class="c1"># =====</span>
+        <span class="c1"># calculate the noisy data</span>
+        <span class="n">tilde_x</span> <span class="o">=</span> <span class="n">x</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">*</span> <span class="n">epsilon</span>
+
+        <span class="c1"># =====</span>
+        <span class="c1"># calculate the score model</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">snet</span><span class="p">(</span><span class="n">tilde_x</span><span class="p">)</span>
+        
+        <span class="c1"># =====LOSS: the Score Matching Loss</span>
+        <span class="n">SM_loss</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.</span> <span class="o">/</span> <span class="p">(</span><span class="mf">2.</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="p">))</span> <span class="o">*</span> <span class="p">((</span><span class="n">s</span> <span class="o">+</span> <span class="n">epsilon</span><span class="p">)</span><span class="o">**</span><span class="mf">2.</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="c1"># in order to keep the Langevine dynamics unchanged, we do not use \tilde{s} = -sigma * s but we use \tilde{s} = sigma * s</span>
+        
+        <span class="c1"># Final LOSS</span>
+        <span class="k">if</span> <span class="n">reduction</span> <span class="o">==</span> <span class="s1">&#39;sum&#39;</span><span class="p">:</span>
+            <span class="n">loss</span> <span class="o">=</span> <span class="n">SM_loss</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">loss</span> <span class="o">=</span> <span class="n">SM_loss</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">loss</span>
+
+    <span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>  <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">):</span>
+        <span class="c1"># sample x_0</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample_base</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">))</span>
+        
+        <span class="c1"># run langevine dynamics</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">langevine_dynamics</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        
+        <span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tanh</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">x</span>
+</pre></div>
+
+     </div>
+</div>
+</div>
+</div>
+
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>After running the code with an MLP-based scoring model, and the following values of the hyperparameters $\alpha = 0.1$, $\sigma=0.1$, $\eta=0.05$ and $T=100$, we can expect results like in Figure 3.</p>
+<br>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><strong>A</strong></p>
+<center><img src="sm_100_real_images.png" width="300"></center><p><strong>B</strong></p>
+<center><img src="sm_100_generated_imagesFINAL.png" width="300"></center><p><strong>C</strong></p>
+<center><img src="sm_100_sm_val_curve.png" width="400"></center><center><b>Figure 3.</b> <b>A.</b> A sample of real images. <b>B.</b> A sample of generated images. <b>C.</b> An example of the score matching loss caluclated on the validation set.</center>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="What-we-can-do-with-score-matching?">What we can do with score matching?<a class="anchor-link" href="#What-we-can-do-with-score-matching?">&#182;</a></h3>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><strong>Improving score matching.</strong> As we can see, we can get some (quite reasonable) generations using an extremely simplistic code. However, there are some issues with score matching as indicated in the original paper (Song &amp; Ermon, 2019):</p>
+<ul>
+<li>First and foremost, low density regions (i.e., regions with little to none data) can cause difficulties in score estimation. Take a look at Figure 2. left again, and look closer at the real score in the dark areas. In these regions there is very unlikely to see any datapoint. As a result, we can very badly estimate the score function.</li>
+<li>Second issue follows from the first one, namely, for a badly trained score model, Langevin dynamics could result in bad samples. To some degree, we can see that in our example in Figure 3.B.</li>
+<li>Third, if modes of a real data distribution are far away, Langevine dynamics would require multiple steps to reach them. This problem is known as <em>slow mixing</em>.  </li>
+</ul>
+<p>To overcome these issues, we can use the following methods:</p>
+<ul>
+<li>Instead of using a single variance, we can choose a sequence of variances and the annealed Langevine dynamics method, as discussed earlier. For details, we recommend (Song &amp; Ermon, 2019) and a follow-up with other useful tricks (Song &amp; Ermon, 2020).</li>
+<li>A better score model, especially for high-dimensional cases, could be trained by following <em>sliced score matching</em> (Song et al., 2020). The idea is similar to Sliced Wasserstein distance (Rabin et al., 2012) in which the score function and the score model are projected onto some random direction. Then, the new sliced score matching objective is easier to calculate (it requires only vector multiplication). This new objective is closely related to Hutchinson’s trace estimator.</li>
+</ul>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><strong>Other extensions.</strong> Score matching is a general framework that could be further extended. Here are some examples:</p>
+<ul>
+<li>Score matching is a suitable approach for energy-based models. This idea was used for learning Boltzmann Machines (Marlin et al. 2010; Swersky et al., 2011), and other energy-based models (Li et al., 2023).</li>
+<li>The idea of matching scores of distributions over random variables could be utilized in learning distributions over discrete random variables (Meng et al., 2022). For this, we need to use a different definition of scores, appropriate for probability mass functions.</li>
+<li>Score matching could be used beyond images. In (Luo &amp; Hu, 2021), the authors proposed a method for modeling point clouds. Their approach utilized a specific kind of a score model that is feasible for processing cloud of points.</li>
+</ul>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="References">References<a class="anchor-link" href="#References">&#182;</a></h3>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>(Ho et al., 2020) Ho, J., Jain, A. and Abbeel, P., 2020. Denoising diffusion probabilistic models. Advances in neural information processing systems, 33, pp.6840-6851.</p>
+<p>(Hyvärinen &amp; Dayan, 2005) Hyvärinen, A. and Dayan, P., 2005. Estimation of non-normalized statistical models by score matching. Journal of Machine Learning Research, 6(4).</p>
+<p>(Hyvärinen, 2007) Hyvärinen, A., 2007. Some extensions of score matching. Computational statistics &amp; data analysis, 51(5), pp.2499-2512.</p>
+<p>(Kingma et al., 2021) Kingma, D., Salimans, T., Poole, B. and Ho, J., 2021. Variational diffusion models. Advances in neural information processing systems, 34, pp.21696-21707.</p>
+<p>(Kingma &amp; Gao, 2023) Kingma, D.P. and Gao, R., 2023, November. Understanding diffusion objectives as the ELBO with simple data augmentation. In Thirty-seventh Conference on Neural Information Processing Systems.</p>
+<p>(Li et al., 2023) Li, Z., Chen, Y. and Sommer, F.T., 2023. Learning Energy-Based Models in High-Dimensional Spaces with Multiscale Denoising-Score Matching. Entropy, 25(10), p.1367.</p>
+<p>(Luo &amp; Hu, 2021) Luo, S. and Hu, W., 2021. Score-based point cloud denoising. In Proceedings of the IEEE/CVF International Conference on Computer Vision (pp. 4583-4592).</p>
+<p>(Marlin et al. 2010) Marlin, B., Swersky, K., Chen, B. and Freitas, N., 2010, March. Inductive principles for restricted Boltzmann machine learning. In Proceedings of the thirteenth international conference on artificial intelligence and statistics (pp. 509-516). JMLR Workshop and Conference Proceedings.</p>
+<p>(Meng et al., 2022) Meng, C., Choi, K., Song, J. and Ermon, S., 2022. Concrete score matching: Generalized score matching for discrete data. Advances in Neural Information Processing Systems, 35, pp.34532-34545.</p>
+<p>(Rabin et al., 2012) Rabin, J., Peyré, G., Delon, J. and Bernot, M., 2012. Wasserstein barycenter and its application to texture mixing. In Scale Space and Variational Methods in Computer Vision: Third International Conference, SSVM 2011, Ein-Gedi, Israel, May 29–June 2, 2011, Revised Selected Papers 3 (pp. 435-446). Springer Berlin Heidelberg.</p>
+<p>(Sohl-Dickstein et al., 2015) Sohl-Dickstein, J., Weiss, E., Maheswaranathan, N. and Ganguli, S., 2015, June. Deep unsupervised learning using nonequilibrium thermodynamics. In International conference on machine learning (pp. 2256-2265). PMLR.</p>
+<p>(Song &amp; Ermon, 2019) Song, Y. and Ermon, S., 2019. Generative modeling by estimating gradients of the data distribution. Advances in neural information processing systems, 32.</p>
+<p>(Song &amp; Ermon, 2020) Song, Y. and Ermon, S., 2020. Improved techniques for training score-based generative models. Advances in neural information processing systems, 33, pp.12438-12448.</p>
+<p>(Song et al., 2020) Song, Y., Garg, S., Shi, J. and Ermon, S., 2020, August. Sliced score matching: A scalable approach to density and score estimation. In Uncertainty in Artificial Intelligence (pp. 574-584). PMLR.</p>
+<p>(Song et al., 2021) Song, Y., Durkan, C., Murray, I. and Ermon, S., 2021. Maximum likelihood training of score-based diffusion models. Advances in Neural Information Processing Systems, 34, pp.1415-1428.</p>
+<p>(Swersky et al., 2011) Swersky, K., Ranzato, M.A., Buchman, D., Freitas, N.D. and Marlin, B.M., 2011. On autoencoders and score matching for energy based models. In Proceedings of the 28th international conference on machine learning (ICML-11) (pp. 1201-1208).</p>
+<p>(Vincent 2011) Vincent, P., 2011. A connection between score matching and denoising autoencoders. Neural computation, 23(7), pp.1661-1674.</p>
+<p>(Welling &amp; Teh, 2011) Welling, M. and Teh, Y.W., 2011. Bayesian learning via stochastic gradient Langevin dynamics. In Proceedings of the 28th international conference on machine learning (ICML-11) (pp. 681-688).</p>
+
+</div>
+</div>
+</div>
+</div>
+</body>
+
+
+
+
+
+
+
+</html>
