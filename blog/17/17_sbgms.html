@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>16_score_matching</title><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+
+
+<!-- MUST INCLUDE TO PROPERLY ADD HEADER! -->
+<link rel="stylesheet" type="text/css" media="screen" href="../../css/main.css" />
+<link rel="stylesheet" type="text/css" media="screen" href="../blog.css" />
+
+<!-- Loading mathjax macro -->
+<!-- Load mathjax -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_HTML"></script>
+    <!-- MathJax configuration -->
+    <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+        tex2jax: {
+            inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+            displayMath: [ ['$$','$$'], ["\\[","\\]"] ],
+            processEscapes: true,
+            processEnvironments: true
+        },
+        // Center justify equations in code and markdown cells. Elsewhere
+        // we use CSS to left justify single line equations in code cells.
+        displayAlign: 'center',
+        "HTML-CSS": {
+            styles: {'.MathJax_Display': {"margin": 0}},
+            linebreaks: { automatic: true }
+        }
+    });
+    </script>
+    <!-- End of mathjax configuration --></head>
+<body>
+  <div tabindex="-1" id="notebook" class="border-box-sizing">
+    <div class="container" id="notebook-container">
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="Score-based-Generative-Models-based-on-SDEs/ODEs">Score-based Generative Models based on SDEs/ODEs<a class="anchor-link" href="#Score-based-Generative-Models-based-on-SDEs/ODEs">&#182;</a></h1>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="A-reminder-on-diffusion-based-models">A reminder on diffusion-based models<a class="anchor-link" href="#A-reminder-on-diffusion-based-models">&#182;</a></h3>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>Let us think about diffusion-based models again. We introduced them as hierarchical VAEs with very specific variational posteriors that were constructed as a linear transformation of previous latents and some added Gaussian noise. They could be also seen as a dynamical system with discretized time. To see that, let us say we transform a data point, $\mathbf{x}_{0}$, $\mathbf{x}_0 \sim p_{0}(\mathbf{x}) \equiv p_{data}(\mathbf{x})$ to noise, $\mathbf{x}_{1}$, sampled from a known distribution $\pi$, $\mathbf{x}_{1} \sim p_{1}(\mathbf{x}) \equiv \pi(\mathbf{x})$, the "time" is denoted by $t \in [0, 1]$, and there are  $T$ steps between $\mathbf{x}_{0}$ and $\mathbf{x}_{1}$, namely, a step size is $\Delta = \frac{1}{T}$. Then we can represent the <em>forward diffusion</em> as follows:</p>
+<br>
+\begin{equation}
+\mathbf{x}_{t+\Delta} = \sqrt{1 - \beta_t}\ \mathbf{x}_{t} + \sqrt{\beta_t}\ \epsilon_{t} ,
+\end{equation}
+<br>
+<p>where $\epsilon_{t} \sim \mathcal{N}(0, \mathbf{I})$. As you can notice, my curious reader, this is a dynamical system with discretized time. Please keep it in mind, we will come back to that later.</p>
+<br>
+<p>What is an interesting trait of diffusion-based models is that calculating $\mathbf{x}_{t}$ directly from data $\mathbf{x}_{0}$ is possible because of the linearity and Gaussianity, namely:</p>
+<br>
+\begin{equation}
+\mathbf{x}_{t} = \sqrt{\alpha_t}\ \mathbf{x}_{0} + \sqrt{1 - \alpha_t}\ \epsilon_t,
+\end{equation}
+<br>
+<p>where $\alpha_t = \prod_{\tau=1}^{t} (1 - \beta_{\tau})$. Further, we can calculate the datapoint back in the following manner:</p>
+<br>
+\begin{equation}
+\mathbf{x}_{0} = \frac{1}{\sqrt{\alpha_t}}\ \mathbf{x}_{t}  - \frac{\sqrt{1 - \alpha_t}}{\sqrt{\alpha_t}}\ \epsilon_t.
+\end{equation}
+<br>
+<p>However, unlike in the forward diffusion in which we sample $\epsilon_t$, when we reverse $\mathbf{x}_{t}$ to $\mathbf{x}_{0}$, we do not have acces to the noise $\epsilon_t$. The standard situation is the following: We proceed with the forward diffusion until $\mathbf{x}_{t}$ and disregard all previous $\mathbf{x}$'s and $\epsilon$'s. However, not everything is lost! After all, we can introduce a neural network $\epsilon_{\theta}(\mathbf{x}_{t}, t)$ that aims for predicting the noise.</p>
+<br>
+<p>How to learn this neural network? In the seminal paper (Ho et al., 2020), the loss could be a sum of the following losses:</p>
+<br>
+\begin{equation}
+\mathcal{L}_{t}(\theta) = \|\epsilon_{\theta}(\mathbf{x}_{t}, t) - \epsilon_{t}\|^{2},
+\end{equation}
+<br>
+<p>which was shown to be equivalent to the ELBO. But wait a second, do you see what I see, my curious reader? This loss is equivalent to another loss! Yes, it is score matching as presented in <a href="https://jmtomczak.github.io/blog/16/16_score_matching.html" target="_blank">the post on score matching</a>. There exists the following correspondence between the score model and the noise model (for Gaussian denoising distribution with the standard deviation $\sigma$):</p>
+<br>
+\begin{equation}
+s_{\theta}(\mathbf{x}, t) = -\frac{\epsilon_{\theta}(\mathbf{x}_{t}, t)}{\sigma} .
+\end{equation}
+<br>
+<p>Let us sum these considerations up:</p>
+<ul>
+<li>The forward diffusion defines a discrete-time dynamical system.</li>
+<li>The loss function for diffusion-based models is (almost) identical to the score matching loss.</li>
+<li>In fact, diffusion-based models correspond to score models.</li>
+<li>Diffusion-based models are very similar to score models trained with a schedule for $\sigma$ because both models are iterative and both models consider more noise at each step.</li>
+</ul>
+<p>These similarities indicate that there may be an underlying framework that could generalize score models and diffusion-based models.</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="Stochastic/Ordinary-Differential-Equations-as-deep-generative-models">Stochastic/Ordinary Differential Equations as deep generative models<a class="anchor-link" href="#Stochastic/Ordinary-Differential-Equations-as-deep-generative-models">&#182;</a></h3>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><strong>In the pursuit of a general framework</strong> Before we see an answer to this question about a general framework for score models and diffusion-based models, let us go back to the remark we did in the very beginning: "[diffusion-based models] could be also seen as a dynamical system with discretized time", because the forward diffusion is the following (we repeat it, but it never hurts to repeat something!):</p>
+<br>
+\begin{equation}
+\mathbf{x}_{t+\Delta} = \sqrt{1 - \beta_t}\ \mathbf{x}_{t} + \sqrt{\beta_t}\ \epsilon_{t} .
+\end{equation}
+<br>
+<p>We can be honest with each other, my curious reader, not everyone learned dynamical systems during their studies, or remember them. Before I worked on this post, my memory of ordinary differential equations (ODEs) and stochastic differential equations (SDEs) was very (very!) rusty. Therefore, let us delve into the world of differential equations very briefly! For more curious readers (yes, yes, I mean you!), I highly recommend the following book: (Särkkä &amp; Solin, 2019). It is a great balance between basic and advanced topics.</p>
+<br>
+<p>Just a glipmse to the future: It turns out that SDEs and ODEs have a lot to offer for generative modeling. Hence, please stay with me and we will discover a new, beautiful world of a new class of generative models!</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<br>
+<p><strong>ODEs and numerical methods</strong> We start our discussion with ODEs. In general, we can define them as follows:</p>
+<br>
+\begin{equation}
+\frac{\mathrm{d} \mathbf{x}_t}{\mathrm{d} t} = f(\mathbf{x}_{t}, t) ,
+\end{equation}
+<br>
+<p>with some initial conditions $\mathbf{x}_{0}$. Sometimes, $f(\mathbf{x}_{t}, t)$ is referred to as a <em>vector field</em>.</p>
+<p>We can solve this ODE by running one of numerical methods that aim for discretizing time in a specific way. For instance, Euler's method carries it out in the following way (starting from $t=0$ and proceeding to $t=1$ with a step $\Delta$):</p>
+<br>\begin{align}
+\mathbf{x}_{t+\Delta} - \mathbf{x}_{t} &amp;= f(\mathbf{x}_{t}, t) \cdot \Delta \\
+\mathbf{x}_{t+\Delta} &amp;= \mathbf{x}_{t} + f(\mathbf{x}_{t}, t) \cdot \Delta .
+\end{align}
+<br>
+<p>Sometimes, it is necessary to run from $t=1$ to $t=0$, then we can apply backward Euler's method:</p>
+<br>
+\begin{equation}
+\mathbf{x}_{t} = \mathbf{x}_{t+\Delta} - f(\mathbf{x}_{t+\Delta}, t+\Delta) \cdot \Delta .
+\end{equation}
+<br>
+<p>I know you, my brilliant reader, you see a connection, don't you? If we take $\mathbf{x}_0$ to be our data, and $\mathbf{x}_{1}$ to be noise, then <em>if</em> we knew $f(\mathbf{x}_{t}, t)$, we could run backward Euler's method to get a generative model! Please keep this thought in mind for now. But yes, you are right!</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<br>
+<p><strong>SDEs and Probability Flow ODEs</strong> Now, we will look into SDEs. In general, we can think of SDEs as ODEs whose trajectories are random and are distributed according to some probabilities at each $t$, $p_{t}(\mathbf{x})$. SDEs could be defined as follows:</p>
+<br>
+\begin{equation}
+\mathrm{d} \mathbf{x}_{t} = f(\mathbf{x}_{t}, t) \mathrm{d} t + g(t) \mathrm{d} \mathbf{v}_{t} ,
+\end{equation}
+<br>
+<p>where $\mathbf{v}$ is a standard Wiener process, $f(\cdot, t)$ in this context is referred to as <em>drift</em>, and $g(\cdot)$ is a scalar function called <em>diffusion</em>. The drift component is deterministic (take a look at the formulation of ODEs above), but the diffusion element is stochastic due to the standard Wiener process (for more about Wiener processes, see (Särkkä &amp; Solin, 2019); here, we do not need to know more than that they behave like Gaussians, e.g., the difference of its increments is normally distributed, $\mathbf{v}_{t+\Delta} - \mathbf{v}_{t} \sim \mathcal{N}(0,\Delta)$). A side note: The forms of drift and diffusion are assumed to be <strong>known</strong>. We will give an example later, for now just remember that they are given, my curious reader.</p>
+<br>
+<p>An important property of this SDE is the existence of a corresponding ordinary differential equation whose solutions follow the same distribution! If we start with a datapoint $\mathbf{x}_0$, we can get noise $\mathbf{x}_1 \sim p_{1}(\mathbf{x})$ by solving the following Probability Flow (PF) ODE (Song et al., 2020):</p>
+<br>
+\begin{equation}
+\frac{\mathrm{d} \mathbf{x}_{t}}{\mathrm{d} t} = \left( f(\mathbf{x}_{t}, t) - \frac{1}{2}g^{2}(t) \nabla_{\mathbf{x}_{t}} \ln p_{t}(\mathbf{x}_{t}) \right) .
+\end{equation}
+<br>
+<p>Let us take another look at that and see what we got:</p>
+<ul>
+<li>First of all, we do not have the Wiener process anymore. As a result, we deal with an ODE instead of an SDE.</li>
+<li>Second, the drift component and the diffusion components are still here, but the diffusion is multiplied by $-\frac{1}{2}$ and squared.</li>
+<li>Third, there is the score function! If you want to see a derivation, please check (Song et al., 2020), here we take it for granted as true. However, it looks reasonable. SDEs have solutions that are distributed according to $p_{t}(\mathbf{x})$, hence, it is not surprising that the score function pops up here. After all, the score function indicates how a trajectory should look like according to $p_{t}(\mathbf{x})$.</li>
+</ul>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><strong>PF-ODEs as score-based generative models</strong> But wait a second! What do we have here? If we assume for a second that the score function is known, we can use this PF-ODE as a generative model by applying backward Euler's method starting from $\mathbf{x}_{1} \sim \pi(\mathbf{x})$:</p>
+<br>
+\begin{equation}
+\mathbf{x}_{t} = \mathbf{x}_{t+\Delta} - \left( f(\mathbf{x}_{t+\Delta}, t+\Delta) - \frac{1}{2}g^{2}(t+\Delta) \nabla_{\mathbf{x}_{t+\Delta}} \ln p_{t}(\mathbf{x}_{t+\Delta}) \right) \cdot \Delta .
+\end{equation}
+<br>
+<p>Perfect! Now, the problem is the score function but we know already how to deal with that, we can use denoising score matching (i.e., score matching with the noisy empirical distribution being a mixture of Gaussians centered at datapoints) for learning it. The difference to denoising score matching is that we need to take time $t$ into account:</p>
+\begin{equation}
+\mathcal{L}(\theta) = \int_{0}^{1} \mathcal{L}_t(\theta) \mathrm{d} t .
+\end{equation}
+<br>
+<p>How to define $\mathcal{L}_t(\theta)$? The score matching idea tells us that we should consider $\lambda_t \| s_{\theta}(\mathbf{x}_t, t) - \nabla_{\mathbf{x}_t} \ln p_{t}(\mathbf{x}_t) \|^2$, but since we cannot calculate $p_{t}(\mathbf{x}_t)$, we should use something else. Instead, we can define a distribution $p_{0t}(\mathbf{x}_t|\mathbf{x}_0)$ that allows sampling noisy versions of our original datapoints $\mathbf{x}_0$'s. Putting it all together yields:</p>
+<br>
+\begin{equation}
+\mathcal{L}_t(\theta) = \frac{1}{2} \mathbb{E}_{\mathbf{x}_0 \sim p_{data}(\mathbf{x})} \mathbb{E}_{\mathbf{x}_t \sim p_{0t}(\mathbf{x}_t|\mathbf{x}_0)} \left[ \lambda_t \| s_{\theta}(\mathbf{x}_t, t) - \nabla_{\mathbf{x}_t} \ln p_{0t}(\mathbf{x}_t|\mathbf{x}_0) \|^2 \right] .
+\end{equation}
+<br>
+<p>Importantly, if we take $p_{0t}(\mathbf{x}_t|\mathbf{x}_0)$ to be Gaussian, then we could calculate the score function analytically. We will look into an example soon. Moreover, to calculate $\mathcal{L}_t(\theta)$ we can use a single sample (i.e., the Monte Carlo estimate).</p>
+<br>
+<p>After finding $s_{\theta}(\mathbf{x}_t, t)$, we can sample data by running backward Euler's method as follows:</p>
+<br>
+\begin{equation}
+\mathbf{x}_{t} = \mathbf{x}_{t+\Delta} - \left( f(\mathbf{x}_{t+\Delta}, t+\Delta) - \frac{1}{2}g^{2}(t+\Delta) s_{\theta}(\mathbf{x}_{t+\Delta}, t + \Delta) \right) \cdot \Delta .
+\end{equation}
+<br>
+<p>Please keep in mind that drift and diffusion are assumed to be known. Additionally, we stick to (backward) Euler's method, but you can pick another ODE solver, go ahead and be wild! But here, we want to be clear and as simple as possible.</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<br>
+<p>In Figure 1, we present an example of using backward Euler's method for sampling. For some PF-ODE and a given score function, we can obtain samples from a multimodal distribution. As one may imagine, the ODE solver "goes" towards modes. In this simple example, we can notice that defining PF-ODEs is a powerful generative tool! Once the score function is properly approximated, we can sample from the original distribution in a straightforward manner.</p>
+<br>
+<center><img src="backward_euler.png" width="450"></center><center><b>Figure 1.</b> An example of running backward Euler's method for a multimodal distribution. Here, we used $f(\mathbf{x}, t) = 0$, $g(t) = 9^t$, $T=100$, and the score function (not model!) was calculated using autograd. The green square denotes $\mathbf{x}_1 \sim \pi$, and the blue circle is a sample $\mathbf{x}_0$. </center>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<br>
+<p>Alright, we have all the pieces to formualte our own score-based generative model (now it should be clear why this name, isn't it?).</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="An-example-of-score-based-generative-models:-Variance-Exploding-PF-ODE">An example of score-based generative models: Variance Exploding PF-ODE<a class="anchor-link" href="#An-example-of-score-based-generative-models:-Variance-Exploding-PF-ODE">&#182;</a></h3>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><strong>Model formulation</strong> To define our own score-based generative model (SBGM), we need the following element:</p>
+<ul>
+<li>the drift $f(\mathbf{x}, t)$;</li>
+<li>the diffusion $g(t)$;</li>
+<li>and the form of $p_{0t}(\mathbf{x}_{t}|\mathbf{x}_0)$.</li>
+</ul>
+<p>In (Song et al., 2020) and (Song et al., 2021) we can find three examples of SGBMs, namely, Variance Exploding (VE) SDE, Variance Preserving SDE, and sub-VP SDE. Here, we focus on the VE SDE.</p>
+<br>
+<p>In the VE SDE, we consider the following choices of the drift and the diffusion:</p>
+<ul>
+<li>$f(\mathbf{x}, t) = 0$,</li>
+<li>$g(t) = \sigma^{t}$, where $\sigma &gt; 0$ is a hyperparameter; note that we take $\sigma$ to the power of time $t \in [0,1]$.</li>
+</ul>
+<p>Then, according to our discussion above, plugin our choices for $f(\mathbf{x}, t)$ and $g(t)$ in the general form of the PF-ODE yields:</p>
+<br>
+\begin{equation}
+\frac{\mathrm{d} \mathbf{x}_{t}}{\mathrm{d} t} = - \frac{1}{2} \sigma^{2t} \nabla_{\mathbf{x}_t} \ln p_{t}(\mathbf{x}_{t}) .
+\end{equation}
+<br>
+<p>Now, to learn the score model, we need to define the conditional distribution for obtaining noisy version of $\mathbf{x}_0$. Fortunately, the theory of SDEs (e.g., see Chapter 5 of (Särkkä &amp; Solin, 2019)) tells us how to calculate $p_{0t}(\mathbf{x}_{t}|\mathbf{x}_0)$! Specific formulas are presented in the Appendix of (Song et al., 2020). Here we provide the final solution:</p>
+<br>
+\begin{equation}
+p_{0t}(\mathbf{x}_{t}|\mathbf{x}_0) = \mathcal{N}\left(\mathbf{x}_t | \mathbf{x}_0, \frac{1}{2 \ln \sigma}(\sigma^{2t} - 1) \mathbf{I}\right) ,
+\end{equation}
+<br>
+<p>thus, the variance function over time is the following:</p>
+<br>
+\begin{equation}
+\sigma_t^2 = \frac{1}{2 \ln \sigma}(\sigma^{2t} - 1).
+\end{equation}
+<br>
+<p>Eventually, the final distribution, $p_{01}(\mathbf{x})$ gets approximately close to the following Gaussian (for sufficiently large $\sigma$):</p>
+<br>
+\begin{align}
+p_{01}(\mathbf{x}) &amp;= \int p_{0}(\mathbf{x}_0) * \mathcal{N} \left( \mathbf{x} | \mathbf{x}_{0}, \frac{1}{2 \ln \sigma}(\sigma^{2} - 1)\mathbf{I} \right) \\
+&amp;\approx \mathcal{N}\left( \mathbf{x} | 0, \frac{1}{2 \ln \sigma}(\sigma^{2} - 1)\mathbf{I} \right) .
+\end{align}
+<br>
+<p>We will use $p_{01}(\mathbf{x})$ to sample noise $\mathbf{x}_1$ and then for reverting it to data $\mathbf{x}_0$.</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<br>
+<p>To better understand how various values of $\sigma$ influence $\sigma_{t}$, we can have a look at curves in Figure 2. For obvious reasons, we cannot pick $\sigma = 1$ (why, you ask? well, $ln(1) = 0$, so we get into an issue of dividing by 0), but for $\sigma=1.01$ we get $p_1(\mathbf{x})$ close to the standard Gaussian.</p>
+<center><img src="sbgm_sigmas.png" width="450"></center><center><b>Figure 2.</b> The dependency of the standard deviation of $p_{0t}(\mathbf{x}_{t}|\mathbf{x}_0)$ on $t$ for different choices of $\sigma$.</center>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<br>
+<p><strong>The choice of $\lambda_t$</strong> The last remark, before we move to the training procedure, is about the choice of $\lambda_{t}$ in the definition of $\mathcal{L}_t(\theta)$. So far, I simply omitted that but I had a good reason. (Ho et al., 2020) simply set $\lambda_t \equiv 1$. Done! Really though? Well, as you can imagine, but smart reader, that is not so easy. (Song et al., 2021) showed that it is actually beneficial to set $\lambda_t = \sigma_t^2$ in the case of VE PF-ODE. Then, we can even use the sum over $\mathcal{L}_t(\theta)$ as a proxy to the log-likelihood function. We will take advantage of that for early-stopping in our training procedure.</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<br>
+<p><strong>Training of SBDMs</strong> We will present training procedure basing on the chosen example of the VE SDM. As we outlined earlier in the case of the score matching method, the procedure is relatively easy and straightforward. It consists of the following steps:</p>
+<br>
+<ol>
+<li>Pick a datapoint $\mathbf{x}_0$.</li>
+<li>Sample $\mathbf{x}_1 \sim \pi(\mathbf{x}) = \mathcal{N}\left( \mathbf{x} | 0, \mathbf{I} \right)$.</li>
+<li>Sample $t \sim \mathrm{Uniform}(0,1)$.</li>
+<li>Calculate $\mathbf{x}_t = \mathbf{x}_0 + \sqrt{\frac{1}{2 \ln \sigma}(\sigma^{2t} - 1)} \cdot \mathbf{x}_{1}$. This is a sample from $p_{0t}(\mathbf{x}_{t}|\mathbf{x}_{0})$.</li>
+<li>Evaluate the score model at $\mathbf{x}_t$ and $t$, $s_{\theta}(\mathbf{x}_t, t)$.</li>
+<li>Caclulate the score matching loss for a single sample, $\mathcal{L}_{t}(\theta) = \sigma_{t}^2 \| \mathbf{x}_1 - \sigma_t s_{\theta}(\mathbf{x}_t, t) \|^2$.</li>
+<li>Update $\theta$ using a gradient-based method with $\nabla_{\theta} \mathcal{L}_{t}(\theta)$.</li>
+</ol>
+<p>We repeat these 7 steps for available training data until some stop criterion is met. Obviously, in practice, we use mini-batches instead of single datapoints.</p>
+<p>In this training procedure we use $-\sigma_t s_{\theta}(\mathbf{x}_t, t)$ on purpose because $-\sigma_t s_{\theta}(\mathbf{x}_t, t) = \epsilon_{\theta}(\mathbf{x}_t, t)$ and then the criterion $\sigma_{t}^2 \| \mathbf{x}_1 - \epsilon_{\theta}(\mathbf{x}_t, t) \|^2$ corresponds to diffusion-based models (Kingma et al., 2021; Kingma &amp; Gao, 2023). Now you see why we pushed for seeing diffusion-based models as dynamical systems!</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<br>
+<p><strong>Sampling</strong> After training the score model, we can finally generate! For that, we need to run backward Euler's method (or other ODE solvers, please remember that) that takes the following form for the VE PF-ODE:</p>
+<br>
+\begin{align}
+\mathbf{x}_{t} &amp;= \mathbf{x}_{t+\Delta} + \left( \frac{1}{2}\sigma^{2(t+\Delta)} \left\{ - \frac{1}{\sigma^{t+\Delta}} s_{\theta}(\mathbf{x}_{t+\Delta}, t + \Delta) \right\} \right) \cdot \Delta \\
+&amp;= \mathbf{x}_{t+\Delta} - \left( \frac{1}{2}\sigma^{t+\Delta} s_{\theta}(\mathbf{x}_{t+\Delta}, t + \Delta) \right) \cdot \Delta
+\end{align}
+<br>
+<p>starting from $\mathbf{x}_1 \sim p_{01}(\mathbf{x}) = \mathcal{N}\left( \mathbf{x} | 0, \frac{1}{2 \ln \sigma}(\sigma^{2} - 1)\mathbf{I} \right)$. Note that in the first line we have the plus sign because the diffusion for the VE PF-ODE is $-\frac{1}{2} \sigma^{2t}$, therefore, the minus sign in backward Euler's method turns to plus. Maybe this is very obvious for you, my reader, but I alwasy mess around with pluses and minuses, so I prefer to be very precise here.</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="Finally-some-code!">Finally some code!<a class="anchor-link" href="#Finally-some-code!">&#182;</a></h3>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>We have everything ready for implementing our VE SDGM! Similarly to score matching, we transform data to be in $[-1, 1]$. As you will notice, this code shares many similarities to the code of score matching. But this is to be expected since they are conceptually very similar.</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>The full code (with auxiliary functions) that you can play with is available here: <a href="https://github.com/jmtomczak/intro_dgm">link</a>.</p>
+
+</div>
+</div>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs  ">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<br>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+     <div class="CodeMirror cm-s-jupyter">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">SBGM</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snet</span><span class="p">,</span> <span class="n">sigma</span><span class="p">,</span> <span class="n">D</span><span class="p">,</span> <span class="n">T</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SBGM</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;SBGM by JT.&quot;</span><span class="p">)</span>
+        
+        <span class="c1"># sigma parameter</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">([</span><span class="n">sigma</span><span class="p">])</span>
+        
+        <span class="c1"># define the base distribution (multivariate Gaussian with the diagonal covariance)</span>
+        <span class="n">var</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.</span><span class="o">/</span><span class="p">(</span><span class="mf">2.</span><span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="p">)))</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="mf">1.</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">base</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributions</span><span class="o">.</span><span class="n">multivariate_normal</span><span class="o">.</span><span class="n">MultivariateNormal</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">D</span><span class="p">),</span> <span class="n">var</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">D</span><span class="p">))</span>
+        
+        <span class="c1"># score model</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">snet</span> <span class="o">=</span> <span class="n">snet</span>
+        
+        <span class="c1"># time embedding (a single linear layer)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_embedding</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">D</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">Tanh</span><span class="p">())</span>
+        
+        <span class="c1"># other hyperparams</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">D</span> <span class="o">=</span> <span class="n">D</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">T</span> <span class="o">=</span> <span class="n">T</span>
+                
+        <span class="bp">self</span><span class="o">.</span><span class="n">EPS</span> <span class="o">=</span> <span class="mf">1.e-5</span>
+        
+    <span class="k">def</span> <span class="nf">sigma_fun</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
+        <span class="c1"># the sigma function (dependent on t), it is the std of the distribution</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="mf">1.</span><span class="o">/</span><span class="p">(</span><span class="mf">2.</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="p">)))</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="o">**</span><span class="p">(</span><span class="mf">2.</span><span class="o">*</span><span class="n">t</span><span class="p">)</span> <span class="o">-</span> <span class="mf">1.</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">log_p_base</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="c1"># the log-probability of the base distribition, p_1(x)</span>
+        <span class="n">log_p</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">log_prob</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">log_p</span>
+    
+    <span class="k">def</span> <span class="nf">sample_base</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x_0</span><span class="p">):</span>
+        <span class="c1"># sampling from the base distribution</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">rsample</span><span class="p">(</span><span class="n">sample_shape</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">Size</span><span class="p">([</span><span class="n">x_0</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]]))</span>
+        
+    <span class="k">def</span> <span class="nf">sample_p_t</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x_0</span><span class="p">,</span> <span class="n">x_1</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
+        <span class="c1"># sampling from p_0t(x_t|x_0)</span>
+        <span class="c1"># x_0 ~ data, x_1 ~ noise</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">x_0</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma_fun</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">*</span> <span class="n">x_1</span>
+        
+        <span class="k">return</span> <span class="n">x</span>
+    
+    <span class="k">def</span> <span class="nf">lambda_t</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
+        <span class="c1"># the loss weighting</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma_fun</span><span class="p">(</span><span class="n">t</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span>
+    
+    <span class="k">def</span> <span class="nf">diffusion_coeff</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
+        <span class="c1"># the diffusion coefficient in the SDE</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="o">**</span><span class="n">t</span>
+    
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x_0</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="s1">&#39;mean&#39;</span><span class="p">):</span>
+        <span class="c1"># =====</span>
+        <span class="c1"># x_1 ~ the base distribiution</span>
+        <span class="n">x_1</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">x_0</span><span class="p">)</span>
+        <span class="c1"># t ~ Uniform(0, 1)</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="n">x_0</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="p">))</span>  <span class="o">*</span> <span class="p">(</span><span class="mf">1.</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">EPS</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">EPS</span> 
+        
+        <span class="c1"># =====</span>
+        <span class="c1"># sample from p_0t(x|x_0)</span>
+        <span class="n">x_t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample_p_t</span><span class="p">(</span><span class="n">x_0</span><span class="p">,</span> <span class="n">x_1</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+
+        <span class="c1"># =====</span>
+        <span class="c1"># invert noise</span>
+        <span class="c1"># NOTE: here we use the correspondence eps_theta(x,t) = -sigma*t score_theta(x,t)</span>
+        <span class="n">t_embd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_embedding</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+        <span class="n">x_pred</span> <span class="o">=</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">sigma_fun</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">snet</span><span class="p">(</span><span class="n">x_t</span> <span class="o">+</span> <span class="n">t_embd</span><span class="p">)</span>
+
+        <span class="c1"># =====LOSS: Score Matching</span>
+        <span class="c1"># NOTE: since x_pred is the predicted noise, and x_1 is noise, this corresponds to Noise Matching </span>
+        <span class="c1">#       (i.e., the loss used in diffusion-based models by Ho et al.)</span>
+        <span class="n">SM_loss</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">lambda_t</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="n">x_pred</span> <span class="o">+</span> <span class="n">x_1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        
+        <span class="k">if</span> <span class="n">reduction</span> <span class="o">==</span> <span class="s1">&#39;sum&#39;</span><span class="p">:</span>
+            <span class="n">loss</span> <span class="o">=</span> <span class="n">SM_loss</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">loss</span> <span class="o">=</span> <span class="n">SM_loss</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">loss</span>
+
+    <span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">):</span>
+        <span class="c1"># 1) sample x_0 ~ Normal(0,1/(2log sigma) * (sigma**2 - 1))</span>
+        <span class="n">x_t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample_base</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">))</span>
+        
+        <span class="c1"># Apply Euler&#39;s method</span>
+        <span class="c1"># NOTE: x_0 - data, x_1 - noise</span>
+        <span class="c1">#       Therefore, we must use BACKWARD Euler&#39;s method! This results in the minus sign! </span>
+        <span class="n">ts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">1.</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">EPS</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+        <span class="n">delta_t</span> <span class="o">=</span> <span class="n">ts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">ts</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">ts</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+            <span class="n">tt</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">([</span><span class="n">t</span><span class="p">])</span>
+            <span class="n">u</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">diffusion_coeff</span><span class="p">(</span><span class="n">tt</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">snet</span><span class="p">(</span><span class="n">x_t</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_embedding</span><span class="p">(</span><span class="n">tt</span><span class="p">))</span>
+            <span class="n">x_t</span> <span class="o">=</span> <span class="n">x_t</span> <span class="o">-</span> <span class="n">delta_t</span> <span class="o">*</span> <span class="n">u</span>
+        
+        <span class="n">x_t</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tanh</span><span class="p">(</span><span class="n">x_t</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">x_t</span>
+    
+    <span class="k">def</span> <span class="nf">log_prob_proxy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x_0</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="s2">&quot;mean&quot;</span><span class="p">):</span>
+        <span class="c1"># Calculate the proxy of the log-likelihood (see (Song et al., 2021))</span>
+        <span class="c1"># NOTE: Here, we use a single sample per time step (this is done only for simplicity and speed);</span>
+        <span class="c1"># To get a better estimate, we should sample more noise</span>
+        <span class="n">ts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">EPS</span><span class="p">,</span> <span class="mf">1.</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">ts</span><span class="p">:</span>
+            <span class="c1"># Sample noise</span>
+            <span class="n">x_1</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">x_0</span><span class="p">)</span>
+            <span class="c1"># Sample from p_0t(x_t|x_0)</span>
+            <span class="n">x_t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample_p_t</span><span class="p">(</span><span class="n">x_0</span><span class="p">,</span> <span class="n">x_1</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+            <span class="c1"># Predict noise</span>
+            <span class="n">t_embd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_embedding</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">([</span><span class="n">t</span><span class="p">]))</span>
+            <span class="n">x_pred</span> <span class="o">=</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">snet</span><span class="p">(</span><span class="n">x_t</span> <span class="o">+</span> <span class="n">t_embd</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma_fun</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+            <span class="c1"># loss (proxy)          </span>
+            <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">EPS</span><span class="p">:</span>
+                <span class="n">proxy</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">lambda_t</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="n">x_pred</span> <span class="o">+</span> <span class="n">x_1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">proxy</span> <span class="o">=</span> <span class="n">proxy</span> <span class="o">+</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">lambda_t</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="n">x_pred</span> <span class="o">+</span> <span class="n">x_1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            
+        <span class="k">if</span> <span class="n">reduction</span> <span class="o">==</span> <span class="s2">&quot;mean&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">proxy</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">reduction</span> <span class="o">==</span> <span class="s2">&quot;sum&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">proxy</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+</pre></div>
+
+     </div>
+</div>
+</div>
+</div>
+
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+
+<p>After running the code with an MLP-based scoring model, and the following values of the hyperparameters $\sigma = 1.01$ and $T=20$, we can expect results like in Figure 2.</p>
+<br>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><strong>A</strong></p>
+<center><img src="sbgm_20_real_images.svg" width="300"></center><p><strong>B</strong></p>
+<center><img src="sbgm_20_generated_imagesFINAL.svg" width="300"></center><p><strong>C</strong></p>
+<center><img src="sbgm_20_nll_val_curve.svg" width="400"></center><center><b>Figure 2.</b> <b>A.</b> A sample of real images. <b>B.</b> A sample of generated images. <b>C.</b> An example of the score matching loss calculated on the validation set.</center>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<br>
+<p>I rarely comment on the results, especially that the dataset I use is oversimplistic (but on purpose, so that you can run the code quickly!). However, I want to point out two things:</p>
+<br>
+<ul>
+<li>The VE-SBGM is not a very easy to model to work with because it is pretty noisy. Inspecting the generated images gives a good feeling of potential issues. We run the ODE solver for $20$ steps. However, SBGMs require typically hundreds or ever thousends of steps.</li>
+<li>Take a look at the validation value of the proxy. It is a known fact that the convergence speed of SBGMs is rather slow. </li>
+</ul>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="There-is-a-fantastic-world-of-score-based-generative-models-out-there!">There is a fantastic world of score-based generative models out there!<a class="anchor-link" href="#There-is-a-fantastic-world-of-score-based-generative-models-out-there!">&#182;</a></h3>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><strong>Other SBGMs</strong> There are other classes of SBGMs beside Variance Exploding, namely (Song et al., 2020):</p>
+<br>
+<ul>
+<li>Variance Preserving (VP): the drift is $f(\mathbf{x}, t) = - \frac{1}{2} \beta_t \mathbf{x}$, the diffusion is $g(t) = \sqrt{\beta_t}$, and the loss weighting is $\lambda_t = 1 - \exp\{- \int_{0}^{t} \beta_s \mathrm{d}s\}$, where $\beta_t$ is some function of time $t$.</li>
+<li>sub-VP:  the drift is $f(\mathbf{x}, t) = - \frac{1}{2} \beta_t \mathbf{x}$, the diffusion is $g(t) = \sqrt{\beta_t \left( 1 - \exp\{- 2\int_{0}^{t} \beta_s \mathrm{d}s\} \right)}$, and the loss weighting is $\lambda_t = \left( 1 - \exp\{- \int_{0}^{t} \beta_s \mathrm{d}s\} \right)^2$, where $\beta_t$ is some function of time $t$.</li>
+</ul>
+<br>
+<p>There exist various versions of these models, especially there are different ways of defining $\lambda_t$ and other functions dependent on $t$ like $\sigma_t$ in VE and $\beta_t$ in VP. See (Kingma &amp; Gao, 2023) for an overview.</p>
+<br>
+<p><strong>Better solvers</strong> As briefly mentioned earlier, one drawback of SBGMs is a large number of steps during sampling (i.e., the number of steps of an ODE solver). (Lu et al., 2022) presented a specialized ODE solvers that could achieve great performance within $T=10$ that was further improved to $T=5$ in (Zhou et al., 2023)! In general, a better-suited solver could be used to obtain better results, e.g., by using Heun's method (Karras et al., 2022).</p>
+<br>
+<p><strong>Other improvements</strong> There are many ideas within the domain of score-based models! Here, I will name only a few:</p>
+<ul>
+<li>Using SBGMs in the latent space (Vahdat et al., 2021).</li>
+<li>In fact, it is possible to calculate the log-likelihood function for SBGMs in a similar manner to neural ODE (Chen et al., 2018). (Song et al., 2021) showed that the log-likehood function could be upper-bounded by some modification of the score matching loss.</li>
+<li>Using various tricks to improve the log-likelihood estimation like dequantization and importance-weighting (Zheng et al., 2023).</li>
+<li>In (Song et al., 2023) a new class of models was proposed dubbed <em>consistency models</em>. The idea is to learn a model that could match noise to data in a single step.</li>
+<li>An extension of SBGMs to Remaniann manifolds was proposed in (De Bortoli et al., 2022).</li>
+</ul>
+<br>
+<p><strong>There is a lot of work done!</strong> There are many, many papers on SBGMs being published as we speak. Check out this webpage for up-to-date overview of SBGMs: <a href="https://scorebasedgenerativemodeling.github.io/" target="_blank">[link]</a>.</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="References">References<a class="anchor-link" href="#References">&#182;</a></h3>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>(Chen et al., 2018) Chen, R.T., Rubanova, Y., Bettencourt, J. and Duvenaud, D.K., 2018. Neural ordinary differential equations. Advances in neural information processing systems, 31.</p>
+<p>(De Bortoli et al., 2022) De Bortoli, V., Mathieu, E., Hutchinson, M., Thornton, J., Teh, Y.W. and Doucet, A., 2022. Riemannian score-based generative modelling. Advances in Neural Information Processing Systems, 35, pp.2406-2422.</p>
+<p>(Ho et al., 2020) Ho, J., Jain, A. and Abbeel, P., 2020. Denoising diffusion probabilistic models. Advances in neural information processing systems, 33, pp.6840-6851.</p>
+<p>(Karras et al., 2022) Karras, T., Aittala, M., Aila, T. and Laine, S., 2022. Elucidating the design space of diffusion-based generative models. Advances in Neural Information Processing Systems, 35, pp.26565-26577.</p>
+<p>(Kingma &amp; Gao, 2023) Kingma, D.P. and Gao, R., 2023, November. Understanding diffusion objectives as the ELBO with simple data augmentation. In Thirty-seventh Conference on Neural Information Processing Systems.</p>
+<p>(Lu et al., 2022) Lu, C., Zhou, Y., Bao, F., Chen, J., Li, C. and Zhu, J., 2022. Dpm-solver: A fast ode solver for diffusion probabilistic model sampling in around 10 steps. Advances in Neural Information Processing Systems, 35, pp.5775-5787.</p>
+<p>(Särkkä &amp; Solin, 2019) Särkkä, S. and Solin, A., 2019. Applied stochastic differential equations (Vol. 10). Cambridge University Press.</p>
+<p>(Song et al., 2020) Song, Y., Sohl-Dickstein, J., Kingma, D. P., Kumar, A., Ermon, S., &amp; Poole, B. (2020). Score-based generative modeling through stochastic differential equations. arXiv preprint arXiv:2011.13456.</p>
+<p>(Song et al., 2021) Song, Y., Durkan, C., Murray, I. and Ermon, S., 2021. Maximum likelihood training of score-based diffusion models. Advances in Neural Information Processing Systems, 34, pp.1415-1428.</p>
+<p>(Song et al., 2023) Song, Y., Dhariwal, P., Chen, M. and Sutskever, I., 2023. Consistency models. arXiv preprint arXiv:2303.01469.</p>
+<p>(Vahdat et al., 2021) Vahdat, A., Kreis, K. and Kautz, J., 2021. Score-based generative modeling in latent space. Advances in Neural Information Processing Systems, 34, pp.11287-11302.</p>
+<p>(Zhou et al., 2023) Zhou, Z., Chen, D., Wang, C. and Chen, C., 2023. Fast ODE-based Sampling for Diffusion Models in Around 5 Steps. arXiv preprint arXiv:2312.00094.</p>
+
+</div>
+</div>
+</div>
+</div>
+</body>
+
+
+
+
+
+
+
+</html>
