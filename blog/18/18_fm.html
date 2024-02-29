@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>18_flow_matching</title><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+
+
+<!-- MUST INCLUDE TO PROPERLY ADD HEADER! -->
+<link rel="stylesheet" type="text/css" media="screen" href="../../css/main.css" />
+<link rel="stylesheet" type="text/css" media="screen" href="../blog.css" />
+
+<!-- Loading mathjax macro -->
+<!-- Load mathjax -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_HTML"></script>
+    <!-- MathJax configuration -->
+    <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+        tex2jax: {
+            inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+            displayMath: [ ['$$','$$'], ["\\[","\\]"] ],
+            processEscapes: true,
+            processEnvironments: true
+        },
+        // Center justify equations in code and markdown cells. Elsewhere
+        // we use CSS to left justify single line equations in code cells.
+        displayAlign: 'center',
+        "HTML-CSS": {
+            styles: {'.MathJax_Display': {"margin": 0}},
+            linebreaks: { automatic: true }
+        }
+    });
+    </script>
+    <!-- End of mathjax configuration --></head>
+<body>
+  <div tabindex="-1" id="notebook" class="border-box-sizing">
+    <div class="container" id="notebook-container">
+
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="Flow-Matching:-Matching-flows-instead-of-scores">Flow Matching: Matching flows instead of scores<a class="anchor-link" href="#Flow-Matching:-Matching-flows-instead-of-scores">&#182;</a></h1>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="A-different-perspective-on-generative-models-with-ODEs:-Continuous-Normalizing-Flows-(CNFs)">A different perspective on generative models with ODEs: Continuous Normalizing Flows (CNFs)<a class="anchor-link" href="#A-different-perspective-on-generative-models-with-ODEs:-Continuous-Normalizing-Flows-(CNFs)">&#182;</a></h3>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><strong>About ODEs, again.</strong> Previously, we discussed how generative models could be defined through Stochastic Differential Equations (SDEs) or, equivalently, corresponding Probability Flow Ordinary Differential Equations (PF-ODEs). We showed that by solving SDEs/ODEs using a numerical solver like backward Euler's method, we obtain an iterative generative procedure of turning noise into data. However, there is a question whether we need to first formulate an SDE and its PF-ODE equivalent, or maybe we can take <em>any</em> ODE to define a generative model. I know you, my curious reader, and I feel you! We use SDEs because we know they are trained by score matching. If we take any ODE, how could we learn such generative models?</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>Let us be more concrete here. We recall the definition of an ODE:</p>
+\begin{equation}
+\frac{\mathrm{d} \mathbf{x}_t}{\mathrm{d} t} = v(\mathbf{x}_{t}, t) ,
+\end{equation}<br>
+<p>where the <em>vector field</em>, $v(\mathbf{x}_{t}, t)$, defines the dynamics. Parameterizing the vector field with a neural network with weights $\theta$, $v_{\theta}(\mathbf{x}_{t}, t)$, leads to a so-called <strong>neural ODE</strong> (Chen et al., 2018). If we denote by $\mathbf{x}_{0}$ the initial condition for this neural ODE, e.g., noise, then by solving it, i.e., integrating over <em>time</em> $t$, we get the output (e.g., data):</p>
+\begin{equation}
+\mathbf{x}_{1} = \int_{0}^{1} v_{\theta}(\mathbf{x}_{t}, t) \mathrm{d} t .
+\end{equation}<br>
+<p>So far so good, but there is (almost) nothing new compared to score-based generative models where we match scores instead of distributions (i.e., an empirical distribution to a model). Could we formulate a likelihood-based training? The short answer is: Yes. Is it easy? Again, the short answer: No. But let us look into both answers more in details.</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><br><strong>From the continuity equation (conservation of mass) to the instantaneous change of variables.</strong> Again, sampling from an ODE, namely, integrating from $t=0$ to $t=1$ is not difficult once we have a model of the vector field. We can use Euler's method for that (or any other numerical solver). However, obtaining the model is problematic if we prefer fitting a data distribution to a distribution induced by $v_{\theta}(x, t)$. After all, starting with a known distribution $\mathbf{x}_{0} \sim \pi(\mathbf{x})$ like standard Gaussian, and then solving the ODE yields another distribution! We can express this induced distribution analytically using the <strong>continuity equation</strong>. Here comes some math (and even physics!), so buckle up and let us dive in.</p>
+<p><br>Imagine for a second that probability is a mass (I always think of clay, but it could be water, if you prefer), something we can touch with our fingers. Now let us visualize a pipe of the same cross-section volume across its length in which our mass (e.g., water) flows. At each moment of time, we have some <em>flux</em> of this mass, $f_t$, i.e., our (probability) mass is moved according to the vector field (or velocity), $f_t(\mathbf{x}_t) = p_t(\mathbf{x}_t) v(\mathbf{x}_{t}, t)$. Since we talk about probability mass (or water flowing through the pipe of the same volume of cross-sections everywhere), the mass is conserved, i.e., no new mass (water) (dis)appears (no leaking or pouring in). Mathematically, it means that the change of the mass $\frac{\mathrm{d} p_t(\mathbf{x}_t)}{\mathrm{d} t}$ plus the change of the flux volume in all directions (a.k.a. the divergence of the flux) is constant (i.e., the mass is conserved):</p>
+\begin{equation}
+\frac{\mathrm{d} p_t(\mathbf{x}_t)}{\mathrm{d} t} + \mathrm{div} \left( p_t(\mathbf{x}_t) v(\mathbf{x}_{t}, t) \right) = 0,
+\end{equation}<br>
+<p>where $\mathrm{div} \left(\cdot\right)$ is the divergence defined as follows: $\mathrm{div} \left( V(x_1, \ldots, x_D) \right) = \sum_{d=1}^{D} \frac{\partial V_d(x_1, \ldots, x_D)}{\partial x_d}$, i.e., the sum of first derivatives of $V$ over all variables separately.</p>
+<blockquote>
+<p>As a side note, it is good to notice that the trace of the Jacobian matrix is the divergence of the vector field! For a two-dimensional space and a vector field $V(x_1, x_2)$, $\mathrm{div} \left( V(x_1, x_2) \right) = \frac{\partial V_1(x_1, x_2)}{\partial x_1} + \frac{\partial V_2(x_1, x_2)}{\partial x_2} = \mathrm{Tr}\left( \frac{\partial V_i(x_1, x_2)}{\partial x_i} \right)$, where $\frac{\partial V_i(x_1, x_2)}{\partial x_i} = \begin{bmatrix} \frac{\partial V_{1}}{\partial x_1} &amp; \frac{\partial V_{1}}{\partial x_2} \\ \frac{\partial V_{2}}{\partial x_1} &amp; \frac{\partial V_{2}}{\partial x_2} \end{bmatrix}$ is the Jacobian matrix, and $\mathrm{Tr}(\mathbf{A}) = \sum_{i} \mathbf{A}_{ii}$ is the trace of a matrix $\mathbf{A}$.</p>
+</blockquote>
+<p>It turns out that applying identities of vector calculus and the properties of the divergence allows us to write the continuity equation using the logarithm of the probability distribution (a.k.a. <em>the instantaneous change of variables</em> (Chen et al., 2018)):</p>
+<br>\begin{equation}
+\frac{\mathrm{d} \ln p(\mathbf{x}_t)}{\mathrm{d} t} + \mathrm{Tr}\left( \frac{\partial v(\mathbf{x}_{t}, t)}{\partial \mathbf{x}_t}  \right) = 0 .
+\end{equation}<br>
+<blockquote><p>I know you, my curious reader, you dislike being told about something without a proof. It is a side note, so if you do not have time for it, just skip it. But I find this pretty cool and it will be also helpful in our further discussion. OK, so what do we need? First, a general property: $\frac{\mathrm{d} \ln p_{t}}{\mathrm{d} t} = \frac{1}{p_{t}} \frac{\mathrm{d} p_{t}}{\mathrm{d} t}$, or: $p_{t} \frac{\mathrm{d} \ln p_{t}}{\mathrm{d} t} = \frac{\mathrm{d} p_{t}}{\mathrm{d} t}$. Second, we have: $\frac{\mathrm{div}(p_t v)}{p_t} = \mathrm{div}(v)$. Third, we saw already that the divergence of the vector field equals its trace. Putting all these facts together, we get:
+\begin{align}
+\frac{\mathrm{d} p_t(\mathbf{x}_t)}{\mathrm{d} t} + \mathrm{div} \left( p_t(\mathbf{x}_t) v(\mathbf{x}_{t}, t) \right) &amp;= 0\\
+\frac{1}{p_t(\mathbf{x}_t)} \frac{\mathrm{d} p_t(\mathbf{x}_t)}{\mathrm{d} t} + \frac{1}{p_t(\mathbf{x}_t)} \mathrm{div} \left( p_t(\mathbf{x}_t) v(\mathbf{x}_{t}, t) \right) &amp;= 0\\
+\frac{\mathrm{d} \ln p_t(\mathbf{x}_t)}{\mathrm{d} t} + \mathrm{div} \left( v(\mathbf{x}_{t}, t) \right) &amp;= 0 \\
+\frac{\mathrm{d} \ln p(\mathbf{x}_t)}{\mathrm{d} t} + \mathrm{Tr}\left( \frac{\partial v(\mathbf{x}_{t}, t)}{\partial \mathbf{x}_t}  \right) &amp;= 0
+\end{align}</p>
+</blockquote>
+<p>Then, by integrating across time, we can compute the total change in log-density as follows:</p>
+<br>\begin{align}
+\int_{0}^{1} \left( \frac{\mathrm{d} \ln p(\mathbf{x}_t)}{\mathrm{d} t} + \mathrm{Tr}\left( \frac{\partial v(\mathbf{x}_{t}, t)}{\partial \mathbf{x}_t}  \right) \right) \mathrm{d}t &amp;= 0 \\
+\ln p(\mathbf{x}_1) - \ln \pi(\mathbf{x}_0) + \int_{0}^{1} \mathrm{Tr}\left( \frac{\partial v(\mathbf{x}_{t}, t)}{\partial \mathbf{x}_t}  \right) \mathrm{d}t &amp;= 0 \\
+\ln p(\mathbf{x}_1) &amp;= \ln \pi(\mathbf{x}_0) - \int_0^1 \mathrm{Tr}\left( \frac{\partial v(\mathbf{x}_{t}, t)}{\partial \mathbf{x}_t}  \right) \mathrm{d} t .
+\end{align}<br>
+<p>Why do we bother to calculate everything as log-probabilities? Because the last line is a continuous version of the change of variables used for normalizing flows! Here, we have the integral over time of the trace of the Jacobian matrix instead of the sum of the log-determinants of the Jacobian matrix. Therefore, training neural ODEs is similar to training normalizing flows but with continuous time. As a result, neural ODEs in this context are refered to as <strong>continuous normalizing flows</strong> (CNFs).</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><br><strong>Calculating the log-likelihood for CNFs.</strong> However, unlike in discrete time normalizing flows, we do not require <em>invertibility</em> of $v$, thus, for given datapoint $\mathbf{x}_1$, typically, we cannot simply invert the transformation to obtain $\mathbf{x}_0$. However, under pretty mild conditions (namely, $v$ and its first derivative are Lipschitz continuous, e.g., for a neural net with Lipschitz continuous activation functions like SELU or SiLU, among others), we can uniquely solve the following problem (Grathwohl et al., 2018):</p>
+\begin{equation}\label{eq:cnf_likelihood}\tag{1}
+ \begin{bmatrix} \mathbf{x}_0 \\ \ln p_1(\mathbf{x}_1) - \ln \pi(\mathbf{x}_0) \end{bmatrix}
+ =
+ \int_{1}^{0}
+  \begin{bmatrix}
+   v_{\theta}(\mathbf{x}_{t}, t) \\
+   -\mathrm{Tr}\left( \frac{\partial v_{\theta}(\mathbf{x}_{t}, t)}{\partial \mathbf{x}_t}  \right) 
+   \end{bmatrix}
+ \mathrm{d} t ,
+\end{equation}<p>with the following initial conditions:</p>
+\begin{equation}
+ \begin{bmatrix} \mathbf{x}_1 \\ \ln p_1(\mathbf{x}_{data}) - \ln p_{1}(\mathbf{x}_1) \end{bmatrix}
+ =
+  \begin{bmatrix}
+   \mathbf{x}_{data} \\
+   0 ,
+   \end{bmatrix}
+\end{equation}<br>
+<p>in which $\mathbf{x}_1$ is a datapoint $\mathbf{x}_{data}$, and the difference in log-probability is zero. Note that we solve the problem in the reverse order, namely, from data $\mathbf{x}_1$ to noise $\mathbf{x}_0$.</p>
+<p><br>To sum up, we need to do the following:</p>
+<ol>
+<li>Take a datapoint $\mathbf{x}_1 = \mathbf{x}_{data}$.</li>
+<li>Solve the problem in (\ref{eq:cnf_likelihood}) by applying a solver to find $\mathbf{x}_0$ and keeping track of traces over time.</li>
+<li>Calculate the log-likelihood by adding $\ln \pi(\mathbf{x}_0)$ to the sum of negative traces $- \int_0^1 \mathrm{Tr}\left( \frac{\partial v_{\theta}(\mathbf{x}_{t}, t)}{\partial \mathbf{x}_t}  \right) \mathrm{d} t$.</li>
+</ol>
+<p>Now we can backpropagate through a solver and <em>viola</em>! Or really? What about complexity of this whole procedure? At the first glance, it seems very expensive...</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><br><strong>Hutchinson's trace estimator.</strong> If you remember correctly, my curious reader, the problem with normalizing flows was about calculating the log-determinant of the Jacobian matrix of size $D \times D$, which in general case costs $\mathcal{O}(D^3)$. Computing the trace requires $\mathcal{O}(D^2)$ since we need the sum of the diagonal, but each entry in the diagonal requires a separate forward propagation, thus, the quadratic complexity. It is better than in the discrete case, but there is another caveat: We need to backpropagate through a numerical solver! No free lunch, I am afraid... (Chen et al., 2018) proposed to use the <em>adjoint sensitivity method</em>, which could be seen as a version of backpropagation with the continuous time. Then, the neural ODE is trained by maximizing the log-likelihood $\ln p(\mathbf{x}_1)$. However, it requires running the numerical method to solve the ODE and then backpropagating through it for each new datapoint. This is a very costly operation!</p>
+<p><br>As a result, we need to look for improvements to cut costs everywhere we can. One trick we can apply is about caclulating the trace. By utilizing <em>Hutchinson's trace estimator</em> (Grathwohl et al., 2018), the quadratic complexity is decreased to $\mathcal{O}(D)$, and it is relatively easy to calculate for any square matrix $\mathbf{A}$, namely:</p>
+\begin{equation}
+\mathrm{Tr}(\mathbf{A}) = \mathbb{E}_{\epsilon}\left[ \epsilon^{\top} \mathbf{A} \epsilon \right] ,
+\end{equation}<br>
+<p>where $\epsilon$ follows a distribution with zero mean and a unit variance, e.g., $\epsilon \sim \mathcal{N}(0, \mathbf{I})$. For a specific $\epsilon$, the product of $\mathbf{A} \epsilon$ could be calculated in a single forward pass and it is "backpropagatable", therefore, we can estimate the trace by taking $M$ Monte Carlo samples:</p>
+<br>\begin{equation}
+\mathrm{Tr}(\mathbf{A}) \approx \frac{1}{M} \sum_{m=1}^{M} \epsilon_m^{\top} \mathbf{A} \epsilon_m .
+\end{equation}<br>
+<p>In practice, we take $M=1$, namely, a single sample of $\epsilon$ for every newly coming datapoint. This is a noisy estimate, obviously, however, it is unbiased. As a result, during training with a stochastic gradient-based method, it does not matter too much.</p>
+<p>Eventually, we obtain a procedure that is $\mathcal{O}(D)$ plus the cost of running the adjoint sensitivity method (a specific numerical solver). Overall, not bad, but far from fantastic. We do not even provide a code here, because scaling up CNFs is a known problem. Is there any alternative then? Can we do better? Of course, my curious reader, of course we can!</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="Going-with-the-flow:-Flow-Matching">Going with the flow: Flow Matching<a class="anchor-link" href="#Going-with-the-flow:-Flow-Matching">&#182;</a></h3>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>Let us take another look at the ODE we introduced earlier:</p>
+\begin{equation}
+\frac{\mathrm{d} \mathbf{x}_t}{\mathrm{d} t} = v(\mathbf{x}_{t}, t) .
+\end{equation}<br>
+<p>Additionally to this ODE, we assume a <strong>known</strong> distribution $q_{0}(\mathbf{x})$ (e.g., the standard Gaussian) and a data distribution $q_{1}(\mathbf{x})$.</p>
+<blockquote><p><em>NOTE</em>: To stay consistent with the flow matching literature, we now go from noise ($t=0$) to data ($t=1$), which defines the forward dynamics and, thus, the generative process. Unlike the diffusion models (and score-based models), where the time goes in the other direction, i.e., from data to noise.</p>
+</blockquote>
+<p>We know from our discussion on CNFs above that the distribution defined at any moment $t$ is characterized by the continuity equation. And, moreover, by applying the instantaneous change of variables, we can find a solution, i.e., a probability distribution. However, all of this sounds quite complicated and, as discussed earlier, it results in pretty computationally heavy training. What can we do then? Or, a different question is, what we could do if we <em>knew</em> the vector field $v(\mathbf{x}_{t}, t)$ and distributions $p_{t}(\mathbf{x})$. How could we train our model then? And what would be our model? Do you remember the score matching approach? Take a look at the denoising score matching loss again. What if we apply a similar approach here, namely, instead of looking for a distribution, we find a model of the vector field $v_{\theta}(\mathbf{x}_{t}, t)$. Similar to score matching, we solve the regression problem in the following form:</p>
+<br>\begin{equation}
+\ell_{FM}(\theta) = \mathbb{E}_{t\sim U(0,1), \mathbf{x}_t \sim p_{t}(\mathbf{x})}\left[ \|v_{\theta}(\mathbf{x}_{t}, t) - v(\mathbf{x}_{t}, t) \|^2 \right] ,
+\end{equation}<br>
+<p>instead of looking for a distribution like in CNFs. In plain words, for any time $t$ sampled uniformly at random, we sample $\mathbf{x}_{t}$ from the distribution $p_{t}(\mathbf{x})$ (we assume we <em>know</em> it!) and aim at minimizing the difference between the model $v_{\theta}(\mathbf{x}_{t}, t)$ and the <em>real</em> vector field $v(\mathbf{x}_{t}, t)$ (we assume we <em>know</em> it!).  We refer to this objective as <em>flow matching</em> (FM).</p>
+<p><br>Why would this work? For a very simple reason: If $\ell_{FM}(\theta)  = 0$, i.e., our model perfectly imitates the real vector field, we can transform any noise distribution to the data distribution! Why? Because the vector field <em>pushes</em> points towards the data distribution over time. Take a look at Figure 1 where blue arrows (the vector field) indicate how points should <em>evolve</em> over time from a noise distribution $q_0(\mathbf{x})$ (e.g., the standard Gaussian) to the data distribution $q_1(\mathbf{x})$ (orange half-moons in Figure 1).</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<center><img src="vector_field_600_456.gif" width="600"></center><center><b>Figure 1.</b> An example of how a model of the vector field (blue arrows) changes over time around datapoints (orange two moons).</center>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><br>The second question is why this is so great? The answer is (again) simple: This is the regression problem, the mean squared error loss! Nothing complicated, nothing tricky, a well-behaved convex loss. One can run autograd, and use any deep learning library to implement that. Fantastic!</p>
+<p>But... Here comes the "but": We do not know $p_{t}(\mathbf{x})$ and $v(\mathbf{x}_{t}, t)$. I know you, my curious reader, you kept it in your head throughout the whole discussion so far. You are polite, so you waited patiently. I would already say "bollocks", the assumption that we know both the vector field and the distributions $p_{t}(\mathbf{x})$ is simply bollocks. What we can do about it then, you ask? In the following, we will show how to deal with that!</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><br><strong>Conditional Flow Matching.</strong> First, let us consider a modified problem in which we introduce additional variables $\mathbf{z}$ sampled from a given distribution $q(\mathbf{z})$. The <em>conditional</em> ODE takes the following form:</p>
+\begin{equation}
+\frac{\mathrm{d} \mathbf{x}_t}{\mathrm{d} t} = v(\mathbf{x}_{t}, t; \mathbf{z}) .
+\end{equation}<br>
+<p>For now, please think of this problem as a proxy for the unconditional ODE introduced before. In general, it is typically easier to work with conditional problems as long as the conditioning information is relevant. Regarding $\mathbf{z}$, we can think of it as extra information like data $\mathbf{x}_1$, or anything else like a class label, a piece of text, an audio signal, or an additional image. Then, since we have to also sample $\mathbf{z}$'s from some distribution $q(\mathbf{z})$, the <em>conditional flow matching</em> (CFM) loss can be defined as follows:</p>
+<br>\begin{equation}
+\ell_{CFM}(\theta) = \mathbb{E}_{t\sim U(0,1), \mathbf{x}_t \sim p_{t}(\mathbf{x} | \mathbf{z}), \mathbf{z} \sim q(\mathbf{z})}\left[ \|v_{\theta}(\mathbf{x}_{t}, t) - v(\mathbf{x}_{t}, t; \mathbf{z}) \|^2 \right] ,
+\end{equation}<br>
+<p>where we still use an unconditional model of the conditional vector field.</p>
+<p><br>In the CFM loss, we need to define the conditional distribution at every $t$, $p_{t}(\mathbf{x} | \mathbf{z})$, and the <em>real</em> vector field is conditioned on $\mathbf{z}$, $v(\mathbf{x}_{t}, t; \mathbf{z})$. At first, the CFM problem does not seem to be very useful regarding the FM problem. Why would adding conditioning help to learn a model that should work for the unconditional case? As proved in (Lipman et al., 2022) and (Tong et al., 2023), both losses are equal up to a constant independent of $\theta$, and, thus, their gradients are equal!</p>
+<blockquote><p><strong>Theorem 1</strong> (Lipman et al., 2022) If $p_{t}(\mathbf{x}) &gt; 0$ for all $\mathbf{x} \in \mathbb{R}^D$ amd $t \in [0, 1]$, then, up to a constant independent of $\theta$, $\ell_{FM}$ and $\ell_{CFM}$ are equal, and hence $\nabla_{\theta} \ell_{FM}(\theta) = \nabla_{\theta} \ell_{CFM}(\theta)$.</p>
+</blockquote>
+<p>This is a marvelous result! It means that the model $v_{\theta}(\mathbf{x}, t)$ trained with the conditional version of the loss, but which is unconditional, coincides with the solution of the unconditional flow matching problem. Fantastic! One problem is gone, we can use CFM instead of FM! Alright, but now we have another problem, namely, what this conditioning $\mathbf{z}$ should be, and what is its distribution $q(\mathbf{z})$. Fortunately, there are multiple options (see, e.g., (Tong et al., 2023)), here we focus on two of those:</p>
+<ol>
+<li>In Lipman et al. CNF, $\mathbf{z}$ is a datapoint $\mathbf{x}_1$, and thus, $q(\mathbf{z}) = q_{1}(\mathbf{z})$; in other words, $q(\mathbf{z})$ is the data distribution.</li>
+<li>In Tong et al. CNF (a.k.a. independent CFM, iCFM), $\mathbf{z}$ is a pair of noise and data, $\mathbf{z} = (\mathbf{x}_0, \mathbf{x}_1)$, sampled independently from each other, i.e., $q_0(\mathbf{z}) = q(\mathbf{x}_{0})\ q_{1}(\mathbf{x}_{1})$.</li>
+</ol>
+<p>An extension of iCFM is sampling $\mathbf{z} = (\mathbf{x}_0, \mathbf{x}_1)$ by solving the optimal transport problem. Interested readers (yes, you!) should check out (Tong et al., 2023) for further details.</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><br><strong>Conditional probability paths.</strong> Now we know that we can consider the conditional flow matching problem as the perfect proxy to the uncoditional flow matching problem. However, the last piece of the puzzle is how to obtain conditional distributions $p_{t}(\mathbf{x} | \mathbf{z})$ a.k.a. (conditional) probability paths. We know from our discussions on CNFs that the continuity equation allows us to calculate the probability path. But for that, we need to know the vector field. It is a classical example of circular reasoning. How to avoid it?</p>
+<p><br>My curious reader, so far you have learnt a lot about AI and you probably can guess already what is the simplest approach we can take here. Do I hear properly? Do you whisper Gaussians? Yes, indeed! Let us consider the form of $p_{t}(\mathbf{x} | \mathbf{z})$ first, and then, from that, we will derive the vector field $v(\mathbf{x}, t; \mathbf{z})$. This is probably a limiting factor of the whole approach, but dang, we want to calculate something, and is there a better candidate than Gaussian? Let us consider the conditional probability path of the following form:</p>
+<br>\begin{equation}
+p_{t}(\mathbf{x} | \mathbf{z}) = \mathcal{N}(\mathbf{x} | \mu(\mathbf{z}, t), \sigma^2(\mathbf{z}, t) \mathbf{I}) ,
+\end{equation}<br>
+<p>which is a Gaussian distribution with the mean function $ \mu(\mathbf{z}, t)$ and a diagonal covariance matrix with the standard deviation function $\sigma(\mathbf{z}, t)$. In general, there is no unique ODE that generates these distributions. However, the following theorem shows that there is the unique vector field that leads to those!</p>
+<blockquote><p><strong>Theorem 2</strong> (Lipman et al., 2022) The unique vector field with initial conditionas $p_{0}(\mathbf{x}) = \mathcal{N}(\mu_0, \sigma_0^2 \mathbf{I})$ that generates $p_{t}(\mathbf{x} | \mathbf{z}) = \mathcal{N}(\mathbf{x} | \mu(\mathbf{z}, t), \sigma^2(\mathbf{z}, t) \mathbf{I})$ has the following form:
+\begin{equation}
+v(\mathbf{x}, t; \mathbf{z}) = \frac{\sigma^{'}(\mathbf{z}, t)}{\sigma(\mathbf{z}, t)} \left(\mathbf{x} - \mu(\mathbf{z}, t) \right) + \mu^{'}(\mathbf{z}, t),
+\end{equation}
+where $\sigma^{'}(\mathbf{z}, t)$ and $\mu^{'}(\mathbf{z}, t)$ denote the time derivates of $\sigma(\mathbf{z}, t)$ and $\mu(\mathbf{z}, t)$, respectively.</p>
+</blockquote>
+<p>Ok, we should stop and think of it for a while, maybe read it again. You got it? Yes, this theorem gives us an incredible result! If we consider a class of conditional probability paths in the form of Gaussians, we can <strong>analytically</strong> calculate the conditional vector field as long as the means and the standard deviations are differentiable. In other words, we have a general presciption for flow matching! First, we define means and standard deviations as functions of $\mathbf{z}$ and time $t$. Second, for given forms of the means and the standard deviations, we calculate the conditional vector field. Third, we optimize the conditional flow matching loss for a given vector field model. That is all, as simple as it is. To get a better understanding how it works, we look into two specific forms of conditional flow matching, namely:<br></p>
+<ol>
+<li><strong>Lipman et al. CFM</strong> (we refer to it as 'fm' later on in the code): We take $\mathbf{z} \equiv \mathbf{x}_1$ to be data sampled form the data distribution, $\mathbf{x}_1 \sim q_{1}(\mathbf{x})$. Then, we define the mean and the standard deviation functions as follows:<br><br>
+\begin{align}
+\mu(\mathbf{z}, t) &amp;= t \mathbf{x}_1 ,\\
+\sigma(\mathbf{z}, t) &amp;= t \sigma_{const} - t + 1 ,
+\end{align}<br>
+where $\sigma_{const} &gt; 0$ is a smoothing constant. As a result, we obtain the following conditional probability path and the conditional vector field:<br><br>
+\begin{align}
+p_{t}(\mathbf{x} | \mathbf{z}) &amp;= \mathcal{N}\left( \mathbf{x} | t \mathbf{x}_1, (t \sigma_{const} - t + 1)^2 \mathbf{I} \right) , \\
+v(\mathbf{x}, t ; \mathbf{z}) &amp;= \frac{ \mathbf{x}_1 - (1 - \sigma_{const}) \mathbf{x} }{ 1 - (1 - \sigma_{const}) t } .
+\end{align}<br>
+To obtain the analytical form of $v(\mathbf{x}, t ; \mathbf{z})$, we need to apply the theorem presented above. It turns out that we get a probability path from the standard Gaussian distribution, $p_0(\mathbf{x}) = \mathcal{N}(\mathbf{x} | 0, \mathbf{I})$, to a Gaussian distribution centered at a datapoint with standard deviation $\sigma_{const}$, $p_1(\mathbf{x}) = \mathcal{N}(\mathbf{x} | \mathbf{x}_1, \sigma_{const}^2 \mathbf{I})$ (Lipman et al., 2022).<br><br>
+</li>
+<li><strong>Tong et al. iCFM</strong>: We consider $\mathbf{z} \equiv (\mathbf{x}_0, \mathbf{x}_1)$ and $q(\mathbf{z}) = q_0(\mathbf{x}_0) q_1(\mathbf{x}_1)$. Next, we choose the following means and standard deviations:<br><br>
+\begin{align}
+\mu(\mathbf{z}, t) &amp;= t \mathbf{x}_1 + (1 - t) \mathbf{x}_0 ,\\
+\sigma(\mathbf{z}, t) &amp;= \sigma_{const} ,
+\end{align}<br>
+where $\sigma_{const} &gt; 0$ is a smoothing constant. The mean function is an <em>interpolation</em> between noise and data since $t \in [0, 1]$. The resulting conditional probability path and the conditional vector fields are the following:<br><br>
+\begin{align}
+p_{t}(\mathbf{x} | \mathbf{z}) &amp;= \mathcal{N}\left( \mathbf{x} | t \mathbf{x}_1 + (1 - t) \mathbf{x}_0, \sigma_{const}^2 \mathbf{I} \right) , \\
+v(\mathbf{x}, t ; \mathbf{z}) &amp;= \mathbf{x}_1 - \mathbf{x}_0 .
+\end{align}<br>
+Interestingly, the vector field results in a difference between a data point and a sampled noise. This comes from the fact that we assume fixed standard deviation in the probability path and, after applying Theorem 2, we end up with the derivate of the mean function only. (Tong et al., 2023) showed (see Proposition 3.3 therein) that the boundry distributions are $p_0(\mathbf{x}) = q_0(\mathbf{x}) * \mathcal{N}(\mathbf{x} | 0, \sigma_{const}^2 \mathbf{I})$ and $p_1(\mathbf{x}) = q_1(\mathbf{x}) * \mathcal{N}(\mathbf{x} | 0, \sigma_{const}^2 \mathbf{I})$, where $*$ denotes the convolution operator. For instance, if we take $q_0(\mathbf{x}) = \mathcal{N}(\mathbf{x} | 0, \mathbf{I})$, then $p_0(\mathbf{x}) = \mathcal{N}(\mathbf{x} | 0, (\sigma_{const}^2 + 1) \mathbf{I})$. However, $q_0(\mathbf{x})$ could be any distribution, not only Gaussian. For $q_1(\mathbf{x})$ being the data distribution, the other boundry distribution is $p_1(\mathbf{x}) = \mathcal{N}(\mathbf{x} | \mathbf{x}_1 , \sigma_{const}^2 \mathbf{I})$ that is the same as in the case of the Lipman et al. CFM.
+</li>
+<br>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><strong>A</strong></p>
+<center><img src="fm.png" width="300"></center><p><strong>B</strong></p>
+<center><img src="icfm.png" width="300"></center><center><b>Figure 2.</b> <b>A.</b> An example of Lipman et al. CNF. <b>B.</b> An example of Tong et al. iCNF. The dotted line indicates the interpolation between noise and data.</center>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><br>The differences between Lipman et al. CFM and Tong et al. iCFM are rather subtle. However, these subtle differences lead to different behavior of probability paths. In Figure 2, examples of these two CFMs are presented. Lipman at al. CFM starts with the standard Gaussian that evolves over time to a small Gaussian (i.e., standard deviation decreases) in the data space (see Figure 2A). Tong et al. CFM, on the other hand, defines a small Gaussian that is "moved" over time to the data space (see Figure 2B).</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><br><strong>Training algorithms.</strong> We have all components necessary to define training of vector field models. The general algorithm is defined as follows:</p>
+<ol>
+<li>Sample $t \sim \text{Uniform}(0, 1)$.</li>
+<li>Sample $\mathbf{z} \sim q(\mathbf{z})$.</li>
+<li>Calculate $\mu_{t}(\mathbf{z})$ and $\sigma_{t}(\mathbf{z})$.</li>
+<li>Sample $\mathbf{x}_t \sim \mathcal{N}\left(\mathbf{x} | \mu(\mathbf{z}, t), \sigma(\mathbf{z}, t) \right)$.</li>
+<li>Calculate the vector field $v(\mathbf{x}_{t}, t; \mathbf{z})$.</li>
+<li>Calculate loss $\ell_{CFM}(\theta) = \| v_{\theta}(\mathbf{x}_t, t) - v(\mathbf{x}_{t}, t; \mathbf{z})\|^2$.</li>
+<li>Update parameters: $\theta \leftarrow \text{Update}\left(\theta, \nabla_{\theta} \ell_{CFM}(\theta) \right)$.</li>
+</ol>
+<p>Depending on the choice of the mean function and the standard deviation function, we get a specific form of the vector field. Eventually, we obtain particular formulas in steps 3 and 5, while all other steps remain the same.</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><br><strong>Sampling.</strong> Let me remind you, my curious reader, that we learn a model of the vector field. Once we have it, sampling is straightforward, namely:</p>
+<ol>
+<li>Sample $\mathbf{x} \sim q_0(\mathbf{x})$.</li>
+<li>Run forward Euler method until $t=1$ and with a step size $\Delta$:
+$$ \mathbf{x}_{t+\Delta} = \mathbf{x}_{t} + v_{\theta}(\mathbf{x}_{t}, t)\ \Delta .$$</li>
+</ol>
+<p>Please note that in the case of flow matching, unlike in score-based generative models, we assume that time flows from $t=0$ (i.e., noise), to $t=1$ (i.e., data). As a result, once the model of the vector field is trained, we run the forward Euler method, not the backward Euler method like in score-based generative models.</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><br><strong>Calculating the log-likelihood function.</strong> In the discussion on CNFs we showed that calculating the (log-)likelihood function is possible. Since flow matching does not require the log-likelihood function during training, we did not care about it so far. However, especially for evaluation, but also in many practical applications, being able to calculate the value of the log-likelihood function is beneficial. The full derivation of the log-likelihood function for flow matching is presented in Appendix C of (Lipman et al., 2022). The main idea is similar to CNFs and to make calculations practical, we use Hutchinson's trace estimator, that yields:</p>
+<br>\begin{equation}\label{eq:loglikeli}\tag{2}
+\ln p_{1}(\hat{\mathbf{x}}_1) \approx \ln p_{0}(\hat{\mathbf{x}}_0) - f_{0} ,
+\end{equation}<br>
+<p>where $\hat{\mathbf{x}}_1$ is a data point, $\hat{\mathbf{x}}_0$ is noise that corresponds to $\hat{\mathbf{x}}_1$, and $f_{0}$ is an approximation of the trace of the vector field Jacobian. Note that we have only $\hat{\mathbf{x}}_1$, but we can obtain $\hat{\mathbf{x}}_0$ and $f_{0}$ by running the following procedure (Lipman et al., 2022):</p>
+<ol>
+<li>For given data point $\hat{\mathbf{x}}_1$, set the initial conditions:
+$$ 
+\begin{bmatrix}
+\phi_1 \\
+f_1
+\end{bmatrix} = 
+\begin{bmatrix}
+\hat{\mathbf{x}}_1 \\
+0
+\end{bmatrix} .
+$$</li>
+<li>Define the following ODE:
+$$ 
+\frac{\mathrm{d}}{\mathrm{d}s}\begin{bmatrix}
+\phi_{1-s} \\
+f_{1-s}
+\end{bmatrix} = 
+\begin{bmatrix}
+-v_{\theta}(\phi_{1-s}, 1-s) \\
+\epsilon^{\top} \nabla_{\phi} v_{\theta}(\phi_{1-s}, 1-s) \epsilon
+\end{bmatrix} 
+$$
+where $\epsilon \sim \mathcal{N}(0, \mathbf{I})$.<blockquote><p>NOTE: We calculate $\nabla_{\phi} v_{\theta}(\phi_{1-s}, 1-s)$ by using autograd.</p>
+</blockquote>
+</li>
+<li>Solve the ODE in step 2 by running the backward Euler method.<blockquote><p>NOTE: Here we need to go from $t=1$ to $t=0$, thus, the backward Euler.</p>
+</blockquote>
+</li>
+<li>Output the result:
+$$ 
+\begin{bmatrix}
+\phi_0 \\
+f_0
+\end{bmatrix} = 
+\begin{bmatrix}
+\hat{\mathbf{x}}_0 \\
+\hat{c}
+\end{bmatrix} .
+$$</li>
+</ol>
+<p><br>The outputs of this procedure are then plugged in to the equation (\ref{eq:loglikeli}) that yields:
+<br><br>\begin{equation}\label{eq:loglikelifinal}
+\ln p_{1}(\hat{\mathbf{x}}_1) \approx \ln p_{0}(\hat{\mathbf{x}}_0) - \hat{c} .
+\end{equation}<br></p>
+<p>Please remember, my curious reader, that this is an approximation due to the trace estimator. However, the estimator is unbiased, and the variance can be reduced by running this procedure $M$ times for a given data point, and then averaging.</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="Coding-flow-matching">Coding flow matching<a class="anchor-link" href="#Coding-flow-matching">&#182;</a></h3>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>We outlined how to implement training and sampling (generation) using flow matching. The code is pretty straightforward and is outlined in the following code snippet. We picked the standard Gaussian noise distribution in our implementation, but please be aware that any other distribution would work.</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><br>The full code (with auxiliary functions) that you can play with is available here: <a href="https://github.com/jmtomczak/intro_dgm">link</a>.</p>
+
+</div>
+</div>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs  ">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">&nbsp;</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+     <div class="CodeMirror cm-s-jupyter">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">FlowMatching</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vnet</span><span class="p">,</span> <span class="n">sigma</span><span class="p">,</span> <span class="n">D</span><span class="p">,</span> <span class="n">T</span><span class="p">,</span> <span class="n">stochastic_euler</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">prob_path</span><span class="o">=</span><span class="s2">&quot;icfm&quot;</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FlowMatching</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Flow Matching by JT.&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">vnet</span> <span class="o">=</span> <span class="n">vnet</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_embedding</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">D</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">Tanh</span><span class="p">())</span>
+        
+        <span class="c1"># other params</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">D</span> <span class="o">=</span> <span class="n">D</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">T</span> <span class="o">=</span> <span class="n">T</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">=</span> <span class="n">sigma</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">stochastic_euler</span> <span class="o">=</span> <span class="n">stochastic_euler</span>
+        
+        <span class="k">assert</span> <span class="n">prob_path</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;icfm&quot;</span><span class="p">,</span> <span class="s2">&quot;fm&quot;</span><span class="p">],</span> <span class="sa">f</span><span class="s2">&quot;Error: The probability path could be either Independent CFM (icfm) or Lipman&#39;s Flow Matching (fm) but </span><span class="si">{</span><span class="n">prob_path</span><span class="si">}</span><span class="s2"> was provided.&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prob_path</span> <span class="o">=</span> <span class="n">prob_path</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">PI</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">))</span>
+    
+    <span class="k">def</span> <span class="nf">log_p_base</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="s1">&#39;sum&#39;</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">log_p</span> <span class="o">=</span> <span class="o">-</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">2.</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">PI</span><span class="p">)</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">x</span><span class="o">**</span><span class="mf">2.</span>
+        <span class="k">if</span> <span class="n">reduction</span> <span class="o">==</span> <span class="s1">&#39;mean&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">log_p</span><span class="p">,</span> <span class="n">dim</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">reduction</span> <span class="o">==</span> <span class="s1">&#39;sum&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">log_p</span><span class="p">,</span> <span class="n">dim</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">log_p</span>
+    
+    <span class="k">def</span> <span class="nf">sample_base</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x_1</span><span class="p">):</span>
+        <span class="c1"># Gaussian base distribution</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">prob_path</span> <span class="o">==</span> <span class="s2">&quot;icfm&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">x_1</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">prob_path</span> <span class="o">==</span> <span class="s2">&quot;fm&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">x_1</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+    
+    <span class="k">def</span> <span class="nf">sample_p_t</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x_0</span><span class="p">,</span> <span class="n">x_1</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">prob_path</span> <span class="o">==</span> <span class="s2">&quot;icfm&quot;</span><span class="p">:</span>
+            <span class="n">mu_t</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.</span> <span class="o">-</span> <span class="n">t</span><span class="p">)</span> <span class="o">*</span> <span class="n">x_0</span> <span class="o">+</span> <span class="n">t</span> <span class="o">*</span> <span class="n">x_1</span>
+            <span class="n">sigma_t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">prob_path</span> <span class="o">==</span> <span class="s2">&quot;fm&quot;</span><span class="p">:</span>
+            <span class="n">mu_t</span> <span class="o">=</span> <span class="n">t</span> <span class="o">*</span> <span class="n">x_1</span>
+            <span class="n">sigma_t</span> <span class="o">=</span> <span class="n">t</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">-</span> <span class="n">t</span> <span class="o">+</span> <span class="mf">1.</span>
+        
+        <span class="n">x</span> <span class="o">=</span> <span class="n">mu_t</span> <span class="o">+</span> <span class="n">sigma_t</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">x_1</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="n">x</span>
+    
+    <span class="k">def</span> <span class="nf">conditional_vector_field</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">x_0</span><span class="p">,</span> <span class="n">x_1</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">prob_path</span> <span class="o">==</span> <span class="s2">&quot;icfm&quot;</span><span class="p">:</span>
+            <span class="n">u_t</span> <span class="o">=</span> <span class="n">x_1</span> <span class="o">-</span> <span class="n">x_0</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">prob_path</span> <span class="o">==</span> <span class="s2">&quot;fm&quot;</span><span class="p">:</span>
+            <span class="n">u_t</span> <span class="o">=</span> <span class="p">(</span><span class="n">x_1</span> <span class="o">-</span> <span class="p">(</span><span class="mf">1.</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="p">)</span> <span class="o">*</span> <span class="n">x</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mf">1.</span> <span class="o">-</span> <span class="p">(</span><span class="mf">1.</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="p">)</span> <span class="o">*</span> <span class="n">t</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="n">u_t</span>
+
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x_1</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="s1">&#39;mean&#39;</span><span class="p">):</span>
+        <span class="c1"># =====Flow Matching</span>
+        <span class="c1"># =====</span>
+        <span class="c1"># z ~ q(z), e.g., q(z) = q(x_0) q(x_1), q(x_0) = base, q(x_1) = empirical</span>
+        <span class="c1"># t ~ Uniform(0, 1)</span>
+        <span class="n">x_0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample_base</span><span class="p">(</span><span class="n">x_1</span><span class="p">)</span>  <span class="c1"># sample from the base distribution (e.g., Normal(0,I))</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="n">x_1</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="p">))</span>
+        
+        <span class="c1"># =====</span>
+        <span class="c1"># sample from p(x|z)</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample_p_t</span><span class="p">(</span><span class="n">x_0</span><span class="p">,</span> <span class="n">x_1</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>  <span class="c1"># sample independent rv </span>
+
+        <span class="c1"># =====</span>
+        <span class="c1"># invert interpolation, i.e., calculate vector field v(x,t)</span>
+        <span class="n">t_embd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_embedding</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">vnet</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">t_embd</span><span class="p">)</span>
+        
+        <span class="c1"># =====</span>
+        <span class="c1"># conditional vector field</span>
+        <span class="n">u_t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">conditional_vector_field</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x_0</span><span class="p">,</span> <span class="n">x_1</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+
+        <span class="c1"># =====LOSS: Flow Matching</span>
+        <span class="n">FM_loss</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="n">v</span> <span class="o">-</span> <span class="n">u_t</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        
+        <span class="c1"># Final LOSS</span>
+        <span class="k">if</span> <span class="n">reduction</span> <span class="o">==</span> <span class="s1">&#39;sum&#39;</span><span class="p">:</span>
+            <span class="n">loss</span> <span class="o">=</span> <span class="n">FM_loss</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">loss</span> <span class="o">=</span> <span class="n">FM_loss</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">loss</span>
+
+    <span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>  <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">):</span>
+        <span class="c1"># Euler method</span>
+        <span class="c1"># sample x_0 first</span>
+        <span class="n">x_t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample_base</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">))</span>
+        
+        <span class="c1"># then go step-by-step to x_1 (data)        </span>
+        <span class="n">ts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">1.</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+        <span class="n">delta_t</span> <span class="o">=</span> <span class="n">ts</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">ts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">ts</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+            <span class="n">t_embedding</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_embedding</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">([</span><span class="n">t</span><span class="p">]))</span>
+            <span class="n">x_t</span> <span class="o">=</span> <span class="n">x_t</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">vnet</span><span class="p">(</span><span class="n">x_t</span> <span class="o">+</span> <span class="n">t_embedding</span><span class="p">)</span> <span class="o">*</span> <span class="n">delta_t</span>
+            <span class="c1"># Stochastic Euler method</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">stochastic_euler</span><span class="p">:</span>
+                <span class="n">x_t</span> <span class="o">=</span> <span class="n">x_t</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">x_t</span><span class="p">)</span> <span class="o">*</span> <span class="n">delta_t</span>
+        
+        <span class="n">x_final</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tanh</span><span class="p">(</span><span class="n">x_t</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">x_final</span>
+    
+    <span class="k">def</span> <span class="nf">log_prob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x_1</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="s1">&#39;mean&#39;</span><span class="p">):</span>
+        <span class="c1"># backward Euler (see Appendix C in Lipman&#39;s paper)</span>
+        <span class="n">ts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">1.</span><span class="p">,</span> <span class="mf">0.</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+        <span class="n">delta_t</span> <span class="o">=</span> <span class="n">ts</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">ts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">ts</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="mf">1.</span><span class="p">:</span>
+                <span class="n">x_t</span> <span class="o">=</span> <span class="n">x_1</span> <span class="o">*</span> <span class="mf">1.</span>
+                <span class="n">f_t</span> <span class="o">=</span> <span class="mf">0.</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Calculate phi_t</span>
+                <span class="n">t_embedding</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_embedding</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">([</span><span class="n">t</span><span class="p">]))</span>
+                <span class="n">x_t</span> <span class="o">=</span><span class="n">x_t</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">vnet</span><span class="p">(</span><span class="n">x_t</span> <span class="o">+</span> <span class="n">t_embedding</span><span class="p">)</span> <span class="o">*</span> <span class="n">delta_t</span>
+                
+                <span class="c1"># Calculate f_t</span>
+                <span class="c1"># approximate the divergence using the Hutchinson trace estimator and the autograd</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">vnet</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>  <span class="c1"># set the vector field net to evaluation</span>
+                
+                <span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">FloatTensor</span><span class="p">(</span><span class="n">x_t</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>  <span class="c1"># copy the original data (it doesn&#39;t require grads!)</span>
+                <span class="n">x</span><span class="o">.</span><span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">True</span> 
+                
+                <span class="n">e</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>  <span class="c1"># epsilon ~ Normal(0, I) </span>
+                
+                <span class="n">e_grad</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">autograd</span><span class="o">.</span><span class="n">grad</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">vnet</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(),</span> <span class="n">x</span><span class="p">,</span> <span class="n">create_graph</span><span class="o">=</span><span class="kc">True</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">e_grad_e</span> <span class="o">=</span> <span class="n">e_grad</span> <span class="o">*</span> <span class="n">e</span>
+                <span class="n">f_t</span> <span class="o">=</span> <span class="n">e_grad_e</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+                <span class="bp">self</span><span class="o">.</span><span class="n">vnet</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>  <span class="c1"># set the vector field net to train again</span>
+        
+        <span class="n">log_p_1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_p_base</span><span class="p">(</span><span class="n">x_t</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="s1">&#39;sum&#39;</span><span class="p">)</span> <span class="o">-</span> <span class="n">f_t</span>
+        
+        <span class="k">if</span> <span class="n">reduction</span> <span class="o">==</span> <span class="s2">&quot;mean&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">log_p_1</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">reduction</span> <span class="o">==</span> <span class="s2">&quot;sum&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">log_p_1</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+</pre></div>
+
+     </div>
+</div>
+</div>
+</div>
+
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>Before we present results of generated images, let us see how flow matching behaves on the two moon dataset in Figure 3. We start with data generated according to the standard Gaussian, and then the vector field model (blue arrows) pushes the points towards two orange half-moons.</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<center><img src="fm_generation_vector_field_600_456.gif" width="600"></center><center><b>Figure 3.</b> An example of how a model of the vector field (blue arrows) pushes points (black crosses) towards data (orange two moons) over time.</center>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><br>After running the code with an MLP-based vector field model, and the following values of the hyperparameters: $\sigma_{const} = 0.1$ and $T=100$, we can expect results like in Figure 4. Note that we report the negative log-likelihood estimated according to the procedure presented before.</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p><strong>A</strong></p>
+<center><img src="icfm_100_real_images.png" width="300"></center><p><strong>B</strong></p>
+<center><img src="icfm_100_generated_imagesFINAL.png" width="300"></center><p><strong>C</strong></p>
+<center><img src="icfm_100_nll_val_curve.png" width="400"></center><center><b>Figure 4.</b> <b>A.</b> A sample of real images. <b>B.</b> A sample of generated images. <b>C.</b> An example of the score matching loss caluclated on the validation set.</center>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="What-is-the-future-of-flow-matching?">What is the future of flow matching?<a class="anchor-link" href="#What-is-the-future-of-flow-matching?">&#182;</a></h3>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>Flow matching is a framework first outlined in (Lipman et al., 2022), published in the fall of 2022. Since then, there are multiple extensions proposed. Here, I will point out a few but I highly recommend to search for new development, my curious reader, because I find this framework especially interesting!</p>
+<p>Alright, let me attract your attention to the following papers:</p>
+<ul>
+<li>Similalry to Latent Diffusion, in (Dao et al., 2023) flow matching is used as a "prior" in an auto-encoder setting. First, the auto-encoder is trained, and then the vector field model is trained in the latent space. Afterwards, a sample from the FM model is decoded back to the data space.</li>
+<li>The idea of interpolations in CFM was further extented to <em>stochastic interpolants</em> proposed by (Albergo et al., 2023a; Albergo et al., 2023b). I highly recommend to look these papers up since they provide many interesting extensions, both theoretical and practical.</li>
+<li>As I mentioned earlier, one can propose a better distribution $q(\mathbf{z})$ by using Optimal Transport (OT). This results in OT-CFM (Tong et al., 2023) and Schrodinger Bridge CFM (De Bortoli et al., 2021; Vargas et al., 2021).</li>
+<li>Action matching, a closely related approach to CFM, proposed by (Neklyudov et al., 2023), allows learning an underlying mechanism of moving points in time without modeling the distributions at each step.</li>
+<li>Here, we considered interpolations in Euclidean spaces. (Chen &amp; Lipman, 2023) proposed and extension of CFMs to general Riemannian manifolds.</li>
+<li>To take advantage of symmetries in data, (Klein et al., 2023) modified the cost function in OT-CFM to account for those. Additionally, they used equivariant graph neural networks to formulate equivariant flow matching.</li>
+<li>Here, we discussed the case of continuous random variables. However, in practice, we often deal with discrete data, e.g., molecules, proteins, pixel values. (Campbell et al., 2024) proposed Discrete Flow Models that could be seen as a version of CFM for handling discrete data.</li>
+<li>CFM was also proposed as an method for simulation-based inference (Wildberger et al., 2023), i.e., a problem in which one has an access to a simulator but the likelihood function is unknown or intractable.</li>
+<li>There are very close connections between score-based generative models and flow matching. I highly recommend looking into (Tong et al., 2023) and (Kingma &amp; Gao, 2023) (the appendix therein is simply marvelous!) for further details.</li>
+</ul>
+<p>There are multiple amazing papers that I missed, but I did not do that on purpose. It is simply very difficult to follow all of them. This statement is also a testament that flow matching is becoming the mainstream research direction in Generative AI. In my opinion, it is a fascinating framework that could bring multiple breakthroughs!</p>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="References">References<a class="anchor-link" href="#References">&#182;</a></h3>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>(Albergo et al., 2023a) Albergo, M. S., Boffi, N. M., &amp; Vanden-Eijnden, E. (2023). Stochastic interpolants: A unifying framework for flows and diffusions. arXiv preprint arXiv:2303.08797.</p>
+<p>(Albergo et al., 2023b) Albergo, M. S., Goldstein, M., Boffi, N. M., Ranganath, R., &amp; Vanden-Eijnden, E. (2023). Stochastic interpolants with data-dependent couplings. arXiv preprint arXiv:2310.03725.</p>
+<p>(Campbell et al., 2024) Campbell, A., Yim, J., Barzilay, R., Rainforth, T., &amp; Jaakkola, T. (2024). Generative Flows on Discrete State-Spaces: Enabling Multimodal Flows with Applications to Protein Co-Design. arXiv preprint arXiv:2402.04997.</p>
+<p>(Chen et al., 2018) Chen, R.T., Rubanova, Y., Bettencourt, J. and Duvenaud, D.K., 2018. Neural ordinary differential equations. Advances in neural information processing systems, 31.</p>
+<p>(Chen &amp; Lipman, 2023) Chen, R. T., &amp; Lipman, Y. (2023). Riemannian flow matching on general geometries. arXiv preprint arXiv:2302.03660.</p>
+<p>(Dao et al., 2023) Dao, Q., Phung, H., Nguyen, B., &amp; Tran, A. (2023). Flow matching in latent space. arXiv preprint arXiv:2307.08698.</p>
+<p>(De Bortoli et al., 2021) De Bortoli, V., Thornton, J., Heng, J., &amp; Doucet, A. (2021). Diffusion Schrödinger bridge with applications to score-based generative modeling. Advances in Neural Information Processing Systems, 34, 17695-17709.</p>
+<p>(Grathwohl et al., 2018) Grathwohl, W., Chen, R.T., Bettencourt, J., Sutskever, I. and Duvenaud, D., 2018, September. FFJORD: Free-Form Continuous Dynamics for Scalable Reversible Generative Models. In 
+International Conference on Learning Representations.</p>
+<p>(Kingma &amp; Gao, 2023) Kingma, D.P. and Gao, R., 2023, November. Understanding diffusion objectives as the ELBO with simple data augmentation. In Thirty-seventh Conference on Neural Information Processing Systems.</p>
+<p>(Klein et al., 2023) Klein, L., Krämer, A., &amp; Noé, F. (2023). Equivariant flow matching. Advances in Neural Information Processing Systems, 36.</p>
+<p>(Lipman et al., 2022) Lipman, Y., Chen, R. T., Ben-Hamu, H., Nickel, M., &amp; Le, M. (2022). Flow matching for generative modeling. arXiv preprint arXiv:2210.02747.</p>
+<p>(Neklyudov et al., 2023) Neklyudov, K., Severo, D., &amp; Makhzani, A. (2023). Action matching: A variational method for learning stochastic dynamics from samples. ICML 2023.</p>
+<p>(Tong et al., 2023) Tong, A., Malkin, N., Huguet, G., Zhang, Y., Rector-Brooks, J., Fatras, K., ... &amp; Bengio, Y. (2023). Improving and generalizing flow-based generative models with minibatch optimal transport. arXiv preprint arXiv:2302.00482.</p>
+<p>(Vargas et al., 2021) Vargas, F., Thodoroff, P., Lamacraft, A., &amp; Lawrence, N. (2021). Solving schrödinger bridges via maximum likelihood. Entropy, 23(9), 1134.</p>
+<p>(Wildberger et al., 2023) Wildberger, J., Dax, M., Buchholz, S., Green, S., Macke, J. H., &amp; Schölkopf, B. (2023). Flow Matching for Scalable Simulation-Based Inference. Advances in Neural Information Processing Systems, 36.</p>
+
+</div>
+</div>
+</div>
+</div>
+</body>
+
+
+
+
+
+
+
+</html>
