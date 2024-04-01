@@ -97,33 +97,42 @@
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
 <p><br><strong>From the continuity equation (conservation of mass) to the instantaneous change of variables.</strong> Again, sampling from an ODE, namely, integrating from $t=0$ to $t=1$ is not difficult once we have a model of the vector field. We can use Euler's method for that (or any other numerical solver). However, obtaining the model is problematic if we prefer fitting a data distribution to a distribution induced by $v_{\theta}(x, t)$. After all, starting with a known distribution $\mathbf{x}_{0} \sim \pi(\mathbf{x})$ like standard Gaussian, and then solving the ODE yields another distribution! We can express this induced distribution analytically using the <strong>continuity equation</strong>. Here comes some math (and even physics!), so buckle up and let us dive in.</p>
-<p><br>Imagine for a second that probability is a mass (I always think of clay, but it could be water, if you prefer), something we can touch with our fingers. Now let us visualize a pipe of the same cross-section volume across its length in which our mass (e.g., water) flows. At each moment of time, we have some <em>flux</em> of this mass, $f_t$, i.e., our (probability) mass is moved according to the vector field (or velocity), $f_t(\mathbf{x}_t) = p_t(\mathbf{x}_t) v(\mathbf{x}_{t}, t)$. Since we talk about probability mass (or water flowing through the pipe of the same volume of cross-sections everywhere), the mass is conserved, i.e., no new mass (water) (dis)appears (no leaking or pouring in). Mathematically, it means that the change of the mass $\frac{\mathrm{d} p_t(\mathbf{x}_t)}{\mathrm{d} t}$ plus the change of the flux volume in all directions (a.k.a. the divergence of the flux) is constant (i.e., the mass is conserved):</p>
+<p><br>Imagine for a second that probability is a mass (I always think of clay, but it could be water, if you prefer), something we can touch with our fingers. Now let us visualize a pipe of the same cross-section volume across its length in which our mass (e.g., water) flows. At each moment of time, we have some <em>flux</em> of this mass, $f_t$, i.e., our (probability) mass is moved according to the vector field (or velocity), $f_t(\mathbf{x}_t) = p_t(\mathbf{x}_t) v(\mathbf{x}_{t}, t)$. Since we talk about probability mass (or water flowing through the pipe of the same volume of cross-sections everywhere), the mass is conserved, i.e., no new mass (water) (dis)appears (no leaking or pouring in). Mathematically, it means that the change of the mass $\frac{\partial p_t(\mathbf{x}_t)}{\partial t}$ plus the change of the flux volume in all directions (a.k.a. the divergence of the flux) is constant (i.e., the mass is conserved):</p>
 \begin{equation}
-\frac{\mathrm{d} p_t(\mathbf{x}_t)}{\mathrm{d} t} + \mathrm{div} \left( p_t(\mathbf{x}_t) v(\mathbf{x}_{t}, t) \right) = 0,
+\frac{\partial p_t(\mathbf{x}_t)}{\partial t} + \mathrm{div} \left( p_t(\mathbf{x}_t) v(\mathbf{x}_{t}, t) \right) = 0,
 \end{equation}<br>
 <p>where $\mathrm{div} \left(\cdot\right)$ is the divergence defined as follows: $\mathrm{div} \left( V(x_1, \ldots, x_D) \right) = \sum_{d=1}^{D} \frac{\partial V_d(x_1, \ldots, x_D)}{\partial x_d}$, i.e., the sum of first derivatives of $V$ over all variables separately.</p>
 <blockquote>
 <p>As a side note, it is good to notice that the trace of the Jacobian matrix is the divergence of the vector field! For a two-dimensional space and a vector field $V(x_1, x_2)$, $\mathrm{div} \left( V(x_1, x_2) \right) = \frac{\partial V_1(x_1, x_2)}{\partial x_1} + \frac{\partial V_2(x_1, x_2)}{\partial x_2} = \mathrm{Tr}\left( \frac{\partial V_i(x_1, x_2)}{\partial x_i} \right)$, where $\frac{\partial V_i(x_1, x_2)}{\partial x_i} = \begin{bmatrix} \frac{\partial V_{1}}{\partial x_1} &amp; \frac{\partial V_{1}}{\partial x_2} \\ \frac{\partial V_{2}}{\partial x_1} &amp; \frac{\partial V_{2}}{\partial x_2} \end{bmatrix}$ is the Jacobian matrix, and $\mathrm{Tr}(\mathbf{A}) = \sum_{i} \mathbf{A}_{ii}$ is the trace of a matrix $\mathbf{A}$.</p>
 </blockquote>
 <p>It turns out that applying identities of vector calculus and the properties of the divergence allows us to write the continuity equation using the logarithm of the probability distribution (a.k.a. <em>the instantaneous change of variables</em> (Chen et al., 2018)):</p>
-<br>\begin{equation}
+\begin{equation}
 \frac{\mathrm{d} \ln p(\mathbf{x}_t)}{\mathrm{d} t} + \mathrm{Tr}\left( \frac{\partial v(\mathbf{x}_{t}, t)}{\partial \mathbf{x}_t}  \right) = 0 .
-\end{equation}<br>
-<blockquote><p>I know you, my curious reader, you dislike being told about something without a proof. It is a side note, so if you do not have time for it, just skip it. But I find this pretty cool and it will be also helpful in our further discussion. OK, so what do we need? First, a general property: $\frac{\mathrm{d} \ln p_{t}}{\mathrm{d} t} = \frac{1}{p_{t}} \frac{\mathrm{d} p_{t}}{\mathrm{d} t}$, or: $p_{t} \frac{\mathrm{d} \ln p_{t}}{\mathrm{d} t} = \frac{\mathrm{d} p_{t}}{\mathrm{d} t}$. Second, we have: $\frac{\mathrm{div}(p_t v)}{p_t} = \mathrm{div}(v)$. Third, we saw already that the divergence of the vector field equals its trace. Putting all these facts together, we get:
+\end{equation}<blockquote><p>I know you, my curious reader, you dislike being told about something without a proof. It is a side note, so if you do not have time for it, just skip it. But I find this pretty cool and it will be also helpful in our further discussion. OK, so what do we need? First, a general property: $\frac{\partial \ln p_{t}}{\partial t} = \frac{1}{p_{t}} \frac{\partial p_{t}}{\partial t}$, or: $p_{t} \frac{\partial \ln p_{t}}{\partial t} = \frac{\partial p_{t}}{\partial t}$. Second, we have: $\mathrm{div}(p_t v) = \langle \nabla_{\mathbf{x}} p_t, v \rangle + p_t \mathrm{div}(v)$, hence, $\frac{\mathrm{div}(p_t v)}{p_t} = \langle \nabla_{\mathbf{x}} \ln p_t, v \rangle + \mathrm{div}(v)$. Third, we saw already that the divergence of the vector field equals its trace. Now, we can plug these three facts to the continuity equation:
 \begin{align}
-\frac{\mathrm{d} p_t(\mathbf{x}_t)}{\mathrm{d} t} + \mathrm{div} \left( p_t(\mathbf{x}_t) v(\mathbf{x}_{t}, t) \right) &amp;= 0\\
-\frac{1}{p_t(\mathbf{x}_t)} \frac{\mathrm{d} p_t(\mathbf{x}_t)}{\mathrm{d} t} + \frac{1}{p_t(\mathbf{x}_t)} \mathrm{div} \left( p_t(\mathbf{x}_t) v(\mathbf{x}_{t}, t) \right) &amp;= 0\\
-\frac{\mathrm{d} \ln p_t(\mathbf{x}_t)}{\mathrm{d} t} + \mathrm{div} \left( v(\mathbf{x}_{t}, t) \right) &amp;= 0 \\
-\frac{\mathrm{d} \ln p(\mathbf{x}_t)}{\mathrm{d} t} + \mathrm{Tr}\left( \frac{\partial v(\mathbf{x}_{t}, t)}{\partial \mathbf{x}_t}  \right) &amp;= 0
+\frac{\partial p_t(\mathbf{x}_t)}{\partial t} + \mathrm{div} \left( p_t(\mathbf{x}_t) v(\mathbf{x}_{t}, t) \right) &amp;= 0\\
+\frac{1}{p_t(\mathbf{x}_t)} \frac{\partial p_t(\mathbf{x}_t)}{\partial t} + \frac{1}{p_t(\mathbf{x}_t)} \mathrm{div} \left( p_t(\mathbf{x}_t) v(\mathbf{x}_{t}, t) \right) &amp;= 0\\
+\frac{\partial \ln p_t(\mathbf{x}_t)}{\partial t} + \langle \nabla_{\mathbf{x}} \ln p_t, v \rangle + \mathrm{div} \left( v(\mathbf{x}_{t}, t) \right) &amp;= 0 \\
+\langle \nabla_{\mathbf{x}} \ln p_t, v \rangle = -\frac{\partial \ln p_t(\mathbf{x}_t)}{\partial t} - \mathrm{div} \left( v(\mathbf{x}_{t}, t) \right)
+\end{align}
+<br>
+Next, calculating the total derivative of $\ln p_t(\mathbf{x}_t)$ and plugging in the above equation for $\langle \nabla_{\mathbf{x}} \ln p_t, v \rangle $ , we get the following (Ben-Hamu et al., 2022):
+<br><br>
+\begin{align}
+\frac{\mathrm{d} \ln p(\mathbf{x}_t)}{\mathrm{d} t} &amp;= \langle \frac{\partial \ln p(\mathbf{x}_t)}{\partial t}, \frac{\partial t}{\partial t} \rangle + \langle \nabla_{\mathbf{x}} \ln p(\mathbf{x}_t), \frac{\partial \mathbf{x}_t}{\partial t} \rangle \\
+&amp;= \frac{\partial \ln p(\mathbf{x}_t)}{\partial t} + \langle \nabla_{\mathbf{x}} \ln p(\mathbf{x}_t), \frac{\partial \mathbf{x}_t}{\partial t} \rangle \\
+&amp;= \frac{\partial \ln p(\mathbf{x}_t)}{\partial t} + \langle \nabla_{\mathbf{x}} \ln p(\mathbf{x}_t), v(\mathbf{x}_t , t) \rangle \\
+&amp;= \frac{\partial \ln p(\mathbf{x}_t)}{\partial t} - \frac{\partial \ln p_t(\mathbf{x}_t)}{\partial t} - \mathrm{div} \left( v(\mathbf{x}_{t}, t) \right) \\
+&amp;= - \mathrm{div} \left( v(\mathbf{x}_{t}, t) \right) \\
+&amp;= - \mathrm{Tr}\left( \frac{\partial v(\mathbf{x}_{t}, t)}{\partial \mathbf{x}_t}  \right) 
 \end{align}</p>
 </blockquote>
 <p>Then, by integrating across time, we can compute the total change in log-density as follows:</p>
-<br>\begin{align}
+\begin{align}
 \int_{0}^{1} \left( \frac{\mathrm{d} \ln p(\mathbf{x}_t)}{\mathrm{d} t} + \mathrm{Tr}\left( \frac{\partial v(\mathbf{x}_{t}, t)}{\partial \mathbf{x}_t}  \right) \right) \mathrm{d}t &amp;= 0 \\
 \ln p(\mathbf{x}_1) - \ln \pi(\mathbf{x}_0) + \int_{0}^{1} \mathrm{Tr}\left( \frac{\partial v(\mathbf{x}_{t}, t)}{\partial \mathbf{x}_t}  \right) \mathrm{d}t &amp;= 0 \\
 \ln p(\mathbf{x}_1) &amp;= \ln \pi(\mathbf{x}_0) - \int_0^1 \mathrm{Tr}\left( \frac{\partial v(\mathbf{x}_{t}, t)}{\partial \mathbf{x}_t}  \right) \mathrm{d} t .
-\end{align}<br>
-<p>Why do we bother to calculate everything as log-probabilities? Because the last line is a continuous version of the change of variables used for normalizing flows! Here, we have the integral over time of the trace of the Jacobian matrix instead of the sum of the log-determinants of the Jacobian matrix. Therefore, training neural ODEs is similar to training normalizing flows but with continuous time. As a result, neural ODEs in this context are refered to as <strong>continuous normalizing flows</strong> (CNFs).</p>
+\end{align}<p>Why do we bother to calculate everything as log-probabilities? Because the last line is a continuous version of the change of variables used for normalizing flows! Here, we have the integral over time of the trace of the Jacobian matrix instead of the sum of the log-determinants of the Jacobian matrix. Therefore, training neural ODEs is similar to training normalizing flows but with continuous time. As a result, neural ODEs in this context are refered to as <strong>continuous normalizing flows</strong> (CNFs).</p>
 
 </div>
 </div>
@@ -755,6 +764,7 @@ $$</li>
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
 <p>(Albergo et al., 2023a) Albergo, M. S., Boffi, N. M., &amp; Vanden-Eijnden, E. (2023). Stochastic interpolants: A unifying framework for flows and diffusions. arXiv preprint arXiv:2303.08797.</p>
 <p>(Albergo et al., 2023b) Albergo, M. S., Goldstein, M., Boffi, N. M., Ranganath, R., &amp; Vanden-Eijnden, E. (2023). Stochastic interpolants with data-dependent couplings. arXiv preprint arXiv:2310.03725.</p>
+<p>(Ben-Hamu et al., 2022) Ben-Hamu, H., Cohen, S., Bose, J., Amos, B., Grover, A., Nickel, M., Chen, R.T. and Lipman, Y., 2022. Matching normalizing flows and probability paths on manifolds. arXiv preprint arXiv:2207.04711.</p>
 <p>(Campbell et al., 2024) Campbell, A., Yim, J., Barzilay, R., Rainforth, T., &amp; Jaakkola, T. (2024). Generative Flows on Discrete State-Spaces: Enabling Multimodal Flows with Applications to Protein Co-Design. arXiv preprint arXiv:2402.04997.</p>
 <p>(Chen et al., 2018) Chen, R.T., Rubanova, Y., Bettencourt, J. and Duvenaud, D.K., 2018. Neural ordinary differential equations. Advances in neural information processing systems, 31.</p>
 <p>(Chen &amp; Lipman, 2023) Chen, R. T., &amp; Lipman, Y. (2023). Riemannian flow matching on general geometries. arXiv preprint arXiv:2302.03660.</p>
