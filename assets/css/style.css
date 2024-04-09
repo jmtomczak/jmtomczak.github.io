@@ -644,7 +644,7 @@ section {
 }
 
 .portfolio .portfolio-wrap .portfolio-info {
-  opacity: 0;
+  opacity: 0.75;
   position: absolute;
   top: 0;
   left: 0;
@@ -688,8 +688,9 @@ section {
 }
 
 .portfolio .portfolio-wrap .portfolio-info h4 {
+  background: #000;
   font-size: 20px;
-  color: #45505b;
+  color: #fff;
   font-weight: 600;
 }
 
