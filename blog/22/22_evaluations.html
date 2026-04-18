@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>21: GenAISys</title><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+
+
+<!-- MUST INCLUDE TO PROPERLY ADD HEADER! -->
+<link rel="stylesheet" type="text/css" media="screen" href="../../css/main.css" />
+<link rel="stylesheet" type="text/css" media="screen" href="../blog.css" />
+
+<!-- Loading mathjax macro -->
+<!-- Load mathjax -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_HTML"></script>
+    <!-- MathJax configuration -->
+    <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+        tex2jax: {
+            inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+            displayMath: [ ['$$','$$'], ["\\[","\\]"] ],
+            processEscapes: true,
+            processEnvironments: true
+        },
+        // Center justify equations in code and markdown cells. Elsewhere
+        // we use CSS to left justify single line equations in code cells.
+        displayAlign: 'center',
+        "HTML-CSS": {
+            styles: {'.MathJax_Display': {"margin": 0}},
+            linebreaks: { automatic: true }
+        }
+    });
+    </script>
+    <!-- End of mathjax configuration --></head>
+<body>
+  <div tabindex="-1" id="notebook" class="border-box-sizing">
+    <div class="container" id="notebook-container">
+
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=45b93bd7-d38a-4b37-a344-9b29a19d5b24">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h1 id="Are-we-all-lost-in-leaderboards,-SOTAs-in-conference-papers,-and-all?">Are we all lost in leaderboards, SOTAs in conference papers, and all?<a class="anchor-link" href="#Are-we-all-lost-in-leaderboards,-SOTAs-in-conference-papers,-and-all?">¶</a></h1>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=b246cb86-7120-4e55-bfd9-14aa318b1b1b">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h2 id="Intro">Intro<a class="anchor-link" href="#Intro">¶</a></h2>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=aa3bd22f-b616-4e30-bfec-229dd7285d0b">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p>In the past couple of months I had two extremely interesting discussions. First, with Ewelina Weglarz-Tomczak, about training AI for biology and biochemistry. I was complaining about hardness of training models in AI x Bio, the complexity and scarcity of data. She made me realize that the problem comes from mainly two things: (i) the lack of our understanding of biological laws, and (ii) the confusion in formulating biological problems to solve. These two are tightly connected. While in physics, there are multiple laws that govern the world (I know, there will be someone outraged with this statement, but overall I think we can agree we know many laws of physics), in biological systems, we can't agree on whether observed cells contitute a new class of cells or not, and even how to measure some quantities in the first place! Given that, almost a natural consequence is a big confusion in terms of defining problems we want to solve, and also how to formulate proper benchmarks and evaluation testbeds. We are getting in to the chicken and the egg problem: We don't know what to assess, and, thus, we don't know how to assess it. I am exaggerating here a bit, but if try to see my point and you have worked in biology, I think we can agree on that (at least mostly).</p>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=0a23f280-690e-4ae5-acc5-c1e3e2f0284c">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p>The second interesting conversation I had was with a completely different set of folks, the top-notch AI researchers: Yinghzhen Li, Pierre-Alexandre Mattei, and Jes Frellsen. When we organized the Generative Modeling Spring Schoold a month ago, during a diner, I started bringing up the problem of proper evaluation in biology. In fact, the problem evaluations in generative modeling is a long-standing problem, hence, I also added my 2cts on that too. Nowadays, we as the AI community are very comfortable with using whatever it needs during training as long as we don't touch a test set, and then comparing on a common ground, i.e., a given test set. Over the years, I tried to argue with some researchers that this is not necessarily fair, but I have been always dismissed. As a modest person, I thought: "Well, maybe they are right. Maybe comparing on the same test set is enough, and we shouldn't bother". But these days, I think we crossed the Rubicon and it has simply become unbearable. Every day we see that there is a new LLM beating everything else on 5 benchmarks. The next day there is a new model killing it on 7 benchmarks. Then a big company releases a forecasting tool that got the best, much better than a smaller company did so far. We are in a constant race of beating scores. And that's fine as long as we are scientific about!</p>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=65c5259f-4f1e-47dc-b8a1-ecef15e102fd">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p>So what is my problem, you may ask. My problem is NOT comparing apples to oranges; my problem is we compare sweetness of apples from a spring, when they just turned into bulbs, to apples from a fall, when they are ripe, juciy and super sweet! In terms of AI, my claim is this:</p>
+<br>
+<p><code>For a given problem at hand, to properly evaluate various methods, we should ensure that they all have access to the same data distributions</code></p>
+<br>
+<p>A few explanations are needed here:</p>
+<ul>
+<li>By data distributions I mean the same training data, validation data, and test data. Period.</li>
+<li>I use the word "methods" on purpose because for me an AI system consists of a model and an optimizer, unless we compare optimizers or models alone, then the other part should be fixed.</li>
+</ul>
+<br>
+<p>I hear all the screams now, I get you, but this is extremely important to be crystal clear if we want to be scientific. I cannot use different training data and then claim I got state-of-the-art (SOTA)! If I use the same training data and claim SOTA, I have to be very clear why. I saw multiple papers that presented SOTA results claiming the superiority of their model but the truth being told, the extra gains in scores came from a well-tuned optimizer (e.g., larger mini-batches, training for longer, more compute power). But I do not want to go there, it is more subtle. What I try to say here is this: <code>Using different training data and then comparing methods is unfair</code>. And I will stand by that. To support my claim, I will show you a simple example.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=bb696f28-bab7-47ba-8286-c15a0ada45fc">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p>NOTE: OK, I mentioned my great colleagues and our discussion during the GeMSS 2026. They raised two interesting points I want to share: (i) They were disappointed that we (as the AI community) completely abandoned more principled, statistical analysis of results. Of course, nowadays, it is hard to report p-values or carry out hypothesis testing, but we do not do any uncertainty quantification almost. Nothing. Are we so lost in getting first? Or is it a corporation attitude that leads us all in research? (ii) Jes came up with this brilliant, simple yet neat example of training logistic regressors. If take two logistic regression models and train them with different datasets, and then evaluate on the same test set, can we say one model is really better than the other? Well, it depends on how close training data was to test data. For both points, we didn't get far and I hope I can push them to write a proper paper about that at some point. Here, I'd like to take off with the example Jes gave, and be more concrete. Since I am in awe for generative models (duh...), I decided to pick the simplest generative model I could think of: Naie Bayes. Moreover, circling back to Ewelina's point, this is a great real-life application that shows how misleading many papers are. A company that has more training data doesn't necessarily win, the quality matters. But on the other hand, if we don't even know what we solve, how we can get proper data? Given all wet labs in the world, if I feed them with a blood sample from my left index finger all the time, no matter how many trillions of cells I will give them, it will be useless, unless I want to really understand what's going on in my left index finger.</p>
+<br>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=88fda172-e00d-454e-b22a-a5b5d00e73ca">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p>Alright, <i>ad rem</i>! Let's talk AI!</p>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=dedd342f-a924-4a12-ac66-761d625c07aa">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h2 id="Our-set-up">Our set-up<a class="anchor-link" href="#Our-set-up">¶</a></h2>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=50f27d59-921c-4471-b973-13441c601c2f">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p>Let us image the following situation. We have the true data distribution being a mixture of four labeled Gaussians, and depending from which Gaussian a datapoint comes, we label it accordingly. As a result, we have a nice example of labeled data. We pick the following means of Gaussians: $(-1, 1), (1, 1), (1, -1), (-1, -1)$. All Gaussians are isotropic (i.e., diagonal covariance matrices with the same variances in all directions), and they share the same variance equal $0.25$. This true data distribuitioin in presented in Figure 1.</p>
+<br>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=3c0f964a-1f7c-449b-bef9-dc3ff2aa7417">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p><img alt="No description has been provided for this image" src="fig1_gaussians.png" width="400"/><br>
+<strong>Figure 1.</strong> The true data distribution.</p><br>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=dca63b6a-518e-4275-be16-76d8bffeb18c">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p>Now, we construct three training data:</p>
+<ol>
+<li>The first training data consists of 50 points from Gaussian 0, and 50 points from Gaussian 1. There are no points provided from Gaussian 2 and Gaussian 3. In total, there are 100 data points.</li>
+<li>The second training data comprise 10 points from all four Gaussians, resulting in 40 data points.</li>
+<li>The third training data has 400 data points in total, 100 points from each Gaussian.</li>
+</ol>
+<br>
+<p>Note that these three training datasets are fully labeled, there is nothing funky going around except the first training set is crippled, but on purpose. We depict these three training sets in Figure 2.</p>
+<br>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=c2755bc1-49c1-4d8c-95c5-be6a5e69917b">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p><img alt="No description has been provided for this image" src="fig2_training_sets.png" width="1000"/><br>
+<strong>Figure 2.</strong> The three training sets.</p><br>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=c19a841b-1a5e-40b9-8252-3be06a02a0a8">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p>As mentioned earlier, we fix the class of models to be Naive Bayes with $p(x|y)$ being the product of four Gaussians, i.e., $p(x|y) = \prod_{i=1}^{4} \mathrm{Normal}(x|\mu_i, \mathrm{diag}(\sigma_i^2))$, and $p(y)$ being categorical, i.e., $p(y) = \mathrm{Categorical}(y|\theta)$. As a result, we can express the joint distribution as $p(x, y) = p(x|y)\ p(y)$. Our adaptive parameters are means $\{ \mu_i \}_{i=1}^{4}$ and variances $\{ \sigma_i \}_{i=1}^{4}$, and $\theta = (\theta_0, \theta_1, \theta_2, \theta_3)$. We use small Laplace smoothing for excluding the situation that any $\theta_i$ collapses to $0$. The training procedure simply results in calculating the empirical means, the empirical variances, and the empirical probabilities of classes. Once we have those estimates, we can calculate both the class probabilities using the sum rule and the product rule:
+$$ p(y|x) = \frac{p(x|y)\ p(y)}{\sum_{i=1}^{4} p(x|y=i)\ p(y=i)}, $$
+and we can also sample data points by following the generative process:</p>
+<br>
+<ol>
+<li>$y_{s} \sim p(y)$</li>
+<li>$x_{s} \sim p(x | y_{s})$</li>
+</ol>
+<br>
+<p>So far, so good!</p>
+<br>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=1600cc64-7e9f-441b-9c9f-2152cc11d53a">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p>To avoid any potential errors, the code was written using Python and scikit-learn.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=ef4aba3d-4ded-41e4-8106-d35f2da1dd3e">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h2 id="Discussion">Discussion<a class="anchor-link" href="#Discussion">¶</a></h2>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=93929a93-f990-4657-91c8-a8b007751c7f">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p>After estimating parameters based on the three training datasets, we obtain three models. See figure 4.</p>
+<br>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=4ac3733c-a7e4-4a81-bf53-adf89febb321">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p><img alt="No description has been provided for this image" src="fig3_accuracy.png" width="500"/><br>
+<strong>Figure 3.</strong> The classification accuracy of the three Naive Bayes models trained on the three training data.</p><br>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=6d6511df-6e2a-4874-948b-03fce713dd2f">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p>As you can easily predict, the first model simply sucks. No wonder, it saw only two out of four Gaussians! What about the other two models? Well, given our setting, no surprise, they work similarly. But on the other hand, it may be suprising. After all, we have been always told that more data means better performance! Yet, the difference is tiny.</p>
+<br>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=b0131353-c5c8-44bc-b974-8e8982a4861c">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p>This simple case gives us a few interesting points to discuss:</p>
+<ul>
+<li>First and foremost: <code>Training data matters!</code>. If we look at Figure 3 alone, we say: Ooooh, model 1 is super bad... And we provide SOTA with Model 3! Again ang again: The class of models is the same, only training data are different! As a result, having a mismatch between training distribution and test distribution, no wonder, we will get worse performance. ML 101.</li>
+<li>More data does not necessarily translate to a big jump in performance. In this simple example, having 10x more data translated into $0.9\%$ better classification accuracy! If you are a practitioner, your instict probably screams the following: 10x more effort, a small improvement, yet we are already above $90\%$; is it really worth it?</li>
+<li>Model 2 and Model 3 differ in the training data. If we are in, say, biological world, getting more data that are relevant is important, and kudos to folks who gathered that! This is probably your Nature paper! A similar situation, if not even more important, goes from training data 1 to training data 2! Spotting the necessity of covering the two missing Gaussians is crucial for scientific discovery! But here, we are talking about AI. <code>Having different training data does not allow us to claim SOTA performance of a method</code>, unless we publish our findings in a different domain, then getting a boost of over $40\%$ indicates that we found something interesting in the underlying phenomenon. Not the other way around.</li>
+</ul>
+<br>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=22ee5f08-86ed-4d46-9754-a2d19087a443">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p>Additionally, just for fun, as a generative guy, I also sampled from the models. For Model 1, obviously, it's impossible to sample anything from Gaussian 3 and Gaussian 4, but the fit to Gaussian 0 and Gaussian 1 are basically ideal. If we look at Model 2 and Model 3, the samples alone are hard to distinguish. However, if you pay a closed attention, you could spot that the estimated Gaussians are not ideal! Well, no wonder, we had 10x fewer data points. This bring us to the next point:</p>
+<ul>
+<li>Generative modeling is harder to assess than classification, and looking at samples may not give us a lot. Even further, calculating simple statistics of samples may be also misleading.</li>
+</ul>
+<br>
+<p>This is not a new statement, anyone working on generative modeling knows that. But we seem to forget it, especially if we chage SOTA and get overexcited about generated sequences of tokens.</p>
+<br>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=f31252e0-54a2-4b1d-90c0-c8ede59f35c6">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p><img alt="No description has been provided for this image" src="fig4_model_samples.png" width="1000"/><br>
+<strong>Figure 4.</strong> Samples from the trained three models.</p><br>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=af1ff73c-34c1-4869-a28c-351823368d94">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p>I will stop here, because these are the main points I wanted to make. That being said then, I have a question to you, my curious reader:
+<code>Are we fair in comparing LLMs, diffusion models, deep neural networks, semi-supervised models, RL models, and so on if we use completely different trainig data?</code></p>
+<br>
+<p>Maybe I am mad as a hatter, maybe it does not really matter because being the best at all costs matters. But I am worried that progress cannot be made if we do not approach research in a strict scientific manner. As I mentioned multiple times, if our contribution is to discover new modalities like in many basic sciences, then it is all fine. However, if we want to claim progress in AI methods, we must be rigorous about it and follow scientific standards rather than pitchdeck-like claims of corporations.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=dfebb609-af72-4db7-8967-40096aff8ae2">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h2 id="Closing-words">Closing words<a class="anchor-link" href="#Closing-words">¶</a></h2>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=b83cb5f1-5b5a-4840-af54-601b745d48ba">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p>These are my 2cts regarding current claims about SOTA, leaderboards and progress in contemporary AI. It is an observation I made some time ago and kept in my for long, but discussions with Ewelina regarding the biological world, and Yingzhen, Pierre-Alexandre and Jes regarding statistics and ML, were catalyzers to finally express myself.</p>
+<br>
+<p>I hope this will raise some debate, in the worst case I got it out. If someone writes me saying it is pure bs, fine! I am always open to change my mind, and correct my way of thinking. If my viewpoint is too restrictive, then it is also fine. But then we have to be really careful how we read results published at conferences and presented by companies.</p>
+<br>
+<p>For now, my ask is this: When you do your AI research, please be rigorous, be honest, and do your best to report your settings as clearly as possible.</p>
+</div>
+</div>
+</div>
+</div>
+</body>
+
+
+
+
+
+
+
+</html>
